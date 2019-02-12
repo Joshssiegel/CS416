@@ -12,7 +12,7 @@
 #define _GNU_SOURCE
 
 /* To use real pthread Library in Benchmark, you have to comment the USE_MY_PTHREAD macro */
-// #define USE_MY_PTHREAD 1
+ #define USE_MY_PTHREAD 1
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -20,9 +20,10 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <ucontext.h>
+#include <malloc.h>
 
 typedef uint my_pthread_t;
-
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
 	// thread Id
@@ -33,7 +34,8 @@ typedef struct threadControlBlock {
 	// And more ...
 
 	// YOUR CODE HERE
-} tcb; 
+  int time_quantum_counter;
+} tcb;
 
 /* mutex struct definition */
 typedef struct my_pthread_mutex_t {
@@ -46,8 +48,7 @@ typedef struct my_pthread_mutex_t {
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 
 // YOUR CODE HERE
-
-
+#define STACK_SIZE 1048576;//A megabyte
 /* Function Declarations: */
 
 /* create a new thread */

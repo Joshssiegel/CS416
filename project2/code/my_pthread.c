@@ -10,16 +10,22 @@
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
+ucontext_t newThreadContext, parentContext;
+
 
 
 /* create a new thread */
-int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr, 
+int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
 	// Create Thread Control Block
 	// Create and initialize the context of this thread
+
 	// Allocate space of stack for this thread to run
 	// After everything is all set, push this thread into run queue
-
+  printf("\nWE CREATED A THREAD YALL\n");
+  getcontext(&newThreadContext);
+  newThreadContext.uc_stack.ss_size=STACK_SIZE;
+  printf("size: %d\n",newThreadContext.uc_stack.ss_size);
 	// YOUR CODE HERE
 	return 0;
 };
@@ -47,13 +53,13 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 	// Waiting for a specific thread to terminate
 	// Once this thread finishes,
 	// Deallocated any dynamic memory created when starting this thread
-  
+
 	// YOUR CODE HERE
 	return 0;
 };
 
 /* initialize the mutex lock */
-int my_pthread_mutex_init(my_pthread_mutex_t *mutex, 
+int my_pthread_mutex_init(my_pthread_mutex_t *mutex,
                           const pthread_mutexattr_t *mutexattr) {
 	// Initialize data structures for this mutex
 
@@ -65,8 +71,8 @@ int my_pthread_mutex_init(my_pthread_mutex_t *mutex,
 int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 	// Use the built-in test-and-set atomic function to test the mutex
 	// If mutex is acquired successfuly, enter critical section
-	// If acquiring mutex fails, push current thread into block list 
-	// and context switch to scheduler 
+	// If acquiring mutex fails, push current thread into block list
+	// and context switch to scheduler
 
 	// YOUR CODE HERE
 	return 0;
@@ -74,8 +80,8 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 
 /* release the mutex lock */
 int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
-	// Release mutex and make it available again. 
-	// Put threads in block list to run queue 
+	// Release mutex and make it available again.
+	// Put threads in block list to run queue
 	// so that they could compete for mutex later.
 
 	// YOUR CODE HERE
@@ -92,8 +98,8 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
-	// Every time when timer interrup happens, your thread library 
-	// should be contexted switched from thread context to this 
+	// Every time when timer interrup happens, your thread library
+	// should be contexted switched from thread context to this
 	// schedule function
 
 	// Invoke different actual scheduling algorithms
@@ -109,7 +115,7 @@ static void schedule() {
 // schedule policy
 #ifndef MLFQ
 	// Choose STCF
-#else 
+#else
 	// Choose MLFQ
 #endif
 
@@ -134,4 +140,3 @@ static void sched_mlfq() {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
-

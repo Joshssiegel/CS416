@@ -1,7 +1,7 @@
 // File:	parallelCal.c
 // Author:	Yujie REN
 // Date:	09/23/2017
-
+#include <time.h>//added
 #include <stdio.h>
 #include <unistd.h>
 
@@ -63,7 +63,7 @@ void verify() {
 
 int main(int argc, char **argv) {
 	int i = 0, j = 0;
-	
+
 	if (argc == 1) {
 		thread_num = DEFAULT_THREAD_NUM;
 	} else {
