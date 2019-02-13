@@ -15,12 +15,14 @@
 #define USE_MY_PTHREAD 1
 
 #define STACK_SIZE 1048576//A megabyte
+#define TIME_QUANTUM 10//10 milliseconds
 
 
 /* include lib header files that you need here: */
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ucontext.h>
@@ -93,6 +95,9 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex);
 
 /* destroy the mutex */
 int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
+
+/*handle SIGALRM*/
+void SIGALRM_Handler();
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
