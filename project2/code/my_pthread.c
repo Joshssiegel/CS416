@@ -59,14 +59,16 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   {
     signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
 
+    //setting timer to fire every TIME_QUANTUM milliseconds
     struct itimerval it_val;
     it_val.it_value.tv_sec =  TIME_QUANTUM/1000;
     it_val.it_value.tv_usec =  (TIME_QUANTUM*1000) % 1000000;
     it_val.it_interval = it_val.it_value;
-    //printf("Timer set up.\n");
+
     if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
       perror("error calling setitimer()");
     }
+
 
     threadQ=(threadQueue*) malloc(sizeof(threadQueue));
     //initialize the head and tail
