@@ -139,9 +139,29 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 
 /* scheduler */
 static void schedule() {
-	// Every time when timer interrup happens, your thread library
+  //TODO: context switch to schedule function
+  // Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
+
+  //get the thread that was just running.
+  finishedThread=threadQ->head;
+  //Double check the top of queue was running
+  if(finishedThread->status!=RUNNING){
+    printf("Top of queue was not running. Exiting");
+    exit(0);
+  }
+  //Change the status of the finished thread to ready
+  finishedThread->status=READY;
+  //Move it to the back
+  threadQ->tail->next=finishedThread;
+  threadQ->head=threadQ->head->next;
+  finishedThread->next=NULL;
+  //Setup next thread to run
+  threadToRun=threadQ->head;
+  threadToRun->status=RUNNING;
+  //Swap context
+
 
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
