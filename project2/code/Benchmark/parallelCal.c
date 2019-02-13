@@ -27,6 +27,7 @@ int  sum = 0;
 
 /* A CPU-bound task to do parallel array addition */
 void parallel_calculate(void* arg) {
+	printf("Parallel Calculating %d\n ",*(int*)arg);//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
 

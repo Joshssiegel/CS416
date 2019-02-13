@@ -14,17 +14,17 @@ ucontext_t parentContext;
 
 threadQueue* threadQ=NULL;
 
-
+void doNothing(){;}
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
 
-
+  printf("thread ID is? %d",thread);
 	// Create Thread Control Block
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
   new_tcb->priority=0;
   new_tcb->time_quantum_counter=0;
-  new_tcb->threadId= *thread;
+  new_tcb->threadId= thread;
   new_tcb->thread_status=READY;
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
@@ -74,12 +74,14 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
     //initialize the head and tail
     threadQ->head=qNode;
     threadQ->tail=qNode;
+    //threadQ->head->thread_tcb->thread_status=RUNNING;
     printf("Made the queue\n");
   }
   else{
     threadQ->tail->next=qNode;
     threadQ->tail=qNode;
   }
+
 	return 0;
 };
 
@@ -158,23 +160,41 @@ static void schedule() {
 	// schedule function
 
   //get the thread that was just running.
-  finishedThread=threadQ->head;
+  queueNode* finishedThread=threadQ->head;
   //Double check the top of queue was running
-  if(finishedThread->status!=RUNNING){
-    printf("Top of queue was not running. Exiting");
-    exit(0);
+  if(finishedThread->thread_tcb->thread_status==READY){
+    printf("Top of queue was not running.\n");
+    finishedThread->thread_tcb->thread_status=RUNNING;
+    int swapStatus=swapcontext(&parentContext,&(finishedThread->thread_tcb->context));
+    if(swapStatus!=0){
+      printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
+      exit(0);
+
+    }
+    //exit(0);
   }
+  else{
   //Change the status of the finished thread to ready
-  finishedThread->status=READY;
+  finishedThread->thread_tcb->thread_status=READY;
+  printf("just finished running Thread: %d\n",finishedThread->thread_tcb->threadId);
   //Move it to the back
   threadQ->tail->next=finishedThread;
+  threadQ->tail=finishedThread;
   threadQ->head=threadQ->head->next;
   finishedThread->next=NULL;
   //Setup next thread to run
-  threadToRun=threadQ->head;
-  threadToRun->status=RUNNING;
+  queueNode* threadToRun=threadQ->head;
+  threadToRun->thread_tcb->thread_status=RUNNING;
   //Swap context
+  //Old Context (or this context??) to new context
+  int swapStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
+  if(swapStatus!=0){
+    printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
+    exit(0);
 
+  }
+  //printf("\nswap staus should be 0:  %d\n",swapStatus);
+}
 
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
