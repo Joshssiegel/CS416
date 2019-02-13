@@ -10,23 +10,63 @@
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
-ucontext_t newThreadContext, parentContext;
+ucontext_t parentContext;
 
+threadQueue* threadQ=NULL;
 
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
-	// Create Thread Control Block
-	// Create and initialize the context of this thread
 
+
+	// Create Thread Control Block
+  tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
+  new_tcb->priority=0;
+  new_tcb->time_quantum_counter=0;
+  new_tcb->threadId= *thread;
+  new_tcb->thread_status=READY;
+	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
 	// After everything is all set, push this thread into run queue
   printf("\nWE CREATED A THREAD YALL\n");
+  ucontext_t newThreadContext;
   getcontext(&newThreadContext);
+  //where to return after function is done?
+  newThreadContext.uc_link=0;
+  //Define stack
+  newThreadContext.uc_stack.ss_sp=malloc(STACK_SIZE);
+  //Define stack size
   newThreadContext.uc_stack.ss_size=STACK_SIZE;
-  printf("size: %d\n",newThreadContext.uc_stack.ss_size);
-	// YOUR CODE HERE
+  //Set no flags
+  newThreadContext.uc_stack.ss_flags=0;
+  //Double check memory was allocated
+  if (newThreadContext.uc_stack.ss_sp == 0 )
+  {
+         perror("Could not allocate space for thread");
+         exit( 1 );
+  }
+  printf("Creating new Thread\n");
+  //Make the context
+  makecontext(&newThreadContext, function, 1, arg);
+  new_tcb->context=newThreadContext;
+
+  queueNode* qNode =(queueNode*) malloc(sizeof(queueNode*));
+  qNode->thread_tcb=new_tcb;
+  qNode->next=NULL;
+  //Add context to TCB
+  if(threadQ==NULL)
+  {
+    threadQ=(threadQueue*) malloc(sizeof(threadQueue));
+    //initialize the head and tail
+    threadQ->head=qNode;
+    threadQ->tail=qNode;
+    printf("Made the queue\n");
+  }
+  else{
+    threadQ->tail->next=qNode;
+    threadQ->tail=qNode;
+  }
 	return 0;
 };
 
@@ -96,6 +136,7 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 	return 0;
 };
 
+
 /* scheduler */
 static void schedule() {
 	// Every time when timer interrup happens, your thread library
@@ -104,7 +145,7 @@ static void schedule() {
 
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
-
+  printf("time to schedule my dude\n");
 	// if (sched == STCF)
 	//		sched_stcf();
 	// else if (sched == MLFQ)

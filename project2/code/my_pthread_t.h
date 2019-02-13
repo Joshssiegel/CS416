@@ -12,7 +12,10 @@
 #define _GNU_SOURCE
 
 /* To use real pthread Library in Benchmark, you have to comment the USE_MY_PTHREAD macro */
- #define USE_MY_PTHREAD 1
+#define USE_MY_PTHREAD 1
+
+#define STACK_SIZE 1048576//A megabyte
+
 
 /* include lib header files that you need here: */
 #include <unistd.h>
@@ -23,14 +26,23 @@
 #include <ucontext.h>
 #include <malloc.h>
 
-typedef uint my_pthread_t;
+ typedef enum _status{
+   READY,RUNNING,DONE
+ }status;
+typedef uint my_pthread_t; // a integer identifier
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
 	// thread Id
+  int threadId;
 	// thread status
+  status thread_status;
 	// thread context
+  ucontext_t context;
 	// thread stack
+  //We think this is part of the context
 	// thread priority
+  int priority; //0 is highest priority
+
 	// And more ...
 
 	// YOUR CODE HERE
@@ -46,9 +58,16 @@ typedef struct my_pthread_mutex_t {
 
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
+typedef struct _queueNode{
+  tcb* thread_tcb;
+  struct _queueNode* next;
+} queueNode;
 
+typedef struct _threadQueue {
+  struct _queueNode* head;
+  struct _queueNode* tail;
+} threadQueue;
 // YOUR CODE HERE
-#define STACK_SIZE 1048576;//A megabyte
 /* Function Declarations: */
 
 /* create a new thread */
