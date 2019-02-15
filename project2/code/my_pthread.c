@@ -24,7 +24,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
   new_tcb->priority=0;
   new_tcb->time_quantum_counter=0;
-  new_tcb->threadId= thread;
+  new_tcb->threadId = thread;
   new_tcb->thread_status=READY;
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
@@ -48,7 +48,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   }
   printf("Creating new Thread\n");
   //Make the context
-  makecontext(&newThreadContext, function, 1, arg);
+  makecontext(&newThreadContext, (void*)function, 1, arg);
+  // makecontext(&newThreadContext, function, 1, arg);
   new_tcb->context=newThreadContext;
 
   queueNode* qNode =(queueNode*) malloc(sizeof(queueNode*));
@@ -167,9 +168,8 @@ static void schedule() {
     finishedThread->thread_tcb->thread_status=RUNNING;
     int swapStatus=swapcontext(&parentContext,&(finishedThread->thread_tcb->context));
     if(swapStatus!=0){
-      printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
+      printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
       exit(0);
-
     }
     //exit(0);
   }

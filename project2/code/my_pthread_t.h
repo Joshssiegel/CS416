@@ -35,7 +35,7 @@ typedef uint my_pthread_t; // a integer identifier
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
 	// thread Id
-  int threadId;
+  my_pthread_t *threadId;
 	// thread status
   status thread_status;
 	// thread context
