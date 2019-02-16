@@ -183,6 +183,11 @@ static void schedule() {
 
   //get the thread that was just running.
   queueNode* finishedThread=threadQ->head;
+  if(finishedThread==NULL)
+  {
+    printf("No jobs in queue\n");
+    return;
+  }
   //Double check the top of queue was running
   if(finishedThread->thread_tcb->thread_status==READY){
     printf("Top of queue was not running.\n");
@@ -193,6 +198,29 @@ static void schedule() {
       exit(0);
     }
     //exit(0);
+  }
+  else if(finishedThread->thread_tcb->thread_status==DONE)
+  {
+    printf("thread is done, removing\n");
+    threadQ->head=finishedThread->next;
+    free(finishedThread);
+    queueNode* threadToRun=threadQ->head;
+    if(threadToRun==NULL)
+    {
+      printf("No more threads to run\n");
+    }
+    else{
+      threadToRun->thread_tcb->thread_status=RUNNING;
+      //Swap context
+      //Old Context (or this context??) to new context
+      int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+      if(setStatus!=0){
+        printf("OOPSIES, Set no work, error is: %d \nI'm exiting now\n",setStatus);
+        exit(0);
+
+      }
+    }
+
   }
   else{
   //Change the status of the finished thread to ready
@@ -212,14 +240,13 @@ static void schedule() {
   if(swapStatus!=0){
     printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
     exit(0);
-
   }
   //printf("\nswap staus should be 0:  %d\n",swapStatus);
 }
 
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
-  printf("time to schedule my dude\n");
+  printf("done scheduling my dude\n");
 	// if (sched == STCF)
 	//		sched_stcf();
 	// else if (sched == MLFQ)
@@ -263,10 +290,9 @@ static void sched_mlfq() {
 //Marks finished Threads as DONE
 void processFinishedJob(int threadID){
   printf("\nA job just finished!!!! with ID %d (This is so good :) \n",threadID);
-  /*Seg Faulting
   tcb* finishedThread=findThread(threadID);
   printf("Found thread!\n");
-  finishedThread->thread_status=DONE;*/
+  finishedThread->thread_status=DONE;
 }
 
 /*Search for a thread by its threadID*/
@@ -280,12 +306,19 @@ tcb* findThread(int threadID){
   //Linear search through Queue for threadID
   queueNode* head=threadQ->head;
   printf("about to search list for thread %d\n",threadID);
-  if(*(head->thread_tcb->threadId)==threadID){
+  if((int)(head->thread_tcb->threadId)==(int)(threadID)){
     return head->thread_tcb;
   }
-  while(*(head->thread_tcb->threadId)!=threadID && head!=NULL){
+  else{
+    printf("these two not equal: %d vs %d \n",head->thread_tcb->threadId,threadID);
+  }
+  printf("not head \n");
+  while((int)(head->thread_tcb->threadId)==(int)(threadID) && head!=NULL){
+    printf("ID: %d\n",head->thread_tcb->threadId);
     head=head->next;
   }
+  printf("Reached end of list\n");
+
   //Reached end of list
   if(head==NULL)
   {
