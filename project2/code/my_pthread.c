@@ -13,12 +13,11 @@
 ucontext_t parentContext;
 
 threadQueue* threadQ=NULL;
+//ucontext_t processFinishedJobContext;
 
-void doNothing(){;}
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
-
   printf("thread ID is? %d",thread);
 	// Create Thread Control Block
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
@@ -29,11 +28,33 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
 	// After everything is all set, push this thread into run queue
+
+  //Experiment with finished Job context
+  //ucontext_t threadReturnContext;
+  getcontext(&(new_tcb->return_context));
+  //where to return after function is done?
+  (new_tcb->return_context).uc_link=&parentContext;
+  //Define stack
+  (new_tcb->return_context).uc_stack.ss_sp=malloc(STACK_SIZE);
+  //Define stack size
+  (new_tcb->return_context).uc_stack.ss_size=STACK_SIZE;
+  //Set no flags
+  (new_tcb->return_context).uc_stack.ss_flags=0;
+  //Double check memory was allocated
+  if ((new_tcb->return_context).uc_stack.ss_sp == 0 )
+  {
+         perror("Could not allocate space for return context");
+         exit( 1 );
+  }
+  makecontext(&(new_tcb->return_context), (void*)&processFinishedJob, 1, new_tcb->threadId);
+  //makecontext(&processFinishedJobContext, (void*)&processFinishedJob, 0);
+
+
   printf("\nWE CREATED A THREAD YALL\n");
   ucontext_t newThreadContext;
   getcontext(&newThreadContext);
   //where to return after function is done?
-  newThreadContext.uc_link=0;
+  newThreadContext.uc_link=&(new_tcb->return_context);
   //Define stack
   newThreadContext.uc_stack.ss_sp=malloc(STACK_SIZE);
   //Define stack size
@@ -176,7 +197,7 @@ static void schedule() {
   else{
   //Change the status of the finished thread to ready
   finishedThread->thread_tcb->thread_status=READY;
-  printf("just finished running Thread: %d\n",finishedThread->thread_tcb->threadId);
+  printf("about to swap out running Thread: %d\n",(finishedThread->thread_tcb->threadId));
   //Move it to the back
   threadQ->tail->next=finishedThread;
   threadQ->tail=finishedThread;
@@ -239,3 +260,38 @@ static void sched_mlfq() {
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
+//Marks finished Threads as DONE
+void processFinishedJob(int threadID){
+  printf("\nA job just finished!!!! with ID %d (This is so good :) \n",threadID);
+  /*Seg Faulting
+  tcb* finishedThread=findThread(threadID);
+  printf("Found thread!\n");
+  finishedThread->thread_status=DONE;*/
+}
+
+/*Search for a thread by its threadID*/
+tcb* findThread(int threadID){
+
+  if(threadQ == NULL)
+  {
+    printf("Queue is Null\n");
+    return NULL;
+  }
+  //Linear search through Queue for threadID
+  queueNode* head=threadQ->head;
+  printf("about to search list for thread %d\n",threadID);
+  if(*(head->thread_tcb->threadId)==threadID){
+    return head->thread_tcb;
+  }
+  while(*(head->thread_tcb->threadId)!=threadID && head!=NULL){
+    head=head->next;
+  }
+  //Reached end of list
+  if(head==NULL)
+  {
+    printf("Thread not found.\n");
+    return NULL;
+  }
+  //Thread found
+  return head->thread_tcb;
+}

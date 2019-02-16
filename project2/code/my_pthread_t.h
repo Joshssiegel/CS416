@@ -15,7 +15,7 @@
 #define USE_MY_PTHREAD 1
 
 #define STACK_SIZE 1048576//A megabyte
-#define TIME_QUANTUM 10//10 milliseconds
+#define TIME_QUANTUM 100//10 milliseconds
 
 
 /* include lib header files that you need here: */
@@ -40,6 +40,8 @@ typedef struct threadControlBlock {
   status thread_status;
 	// thread context
   ucontext_t context;
+  ucontext_t return_context;
+
 	// thread stack
   //We think this is part of the context
 	// thread priority
@@ -98,6 +100,12 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
 
 /*handle SIGALRM*/
 void SIGALRM_Handler();
+
+/*When a thread exits, mark it as done*/
+void processFinishedJob(int threadID);
+
+/*Search for a thread by its threadID*/
+tcb* findThread(int threadID);
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
