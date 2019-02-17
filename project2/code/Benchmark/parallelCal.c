@@ -43,6 +43,7 @@ void parallel_calculate(void* arg) {
 		sum += pSum[j];
 		pthread_mutex_unlock(&mutex);
 	}
+	printf("finished function parallel calculate %d\n",*(int*)arg);
 }
 
 /* verification function */
