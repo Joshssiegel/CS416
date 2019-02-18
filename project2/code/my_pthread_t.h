@@ -19,6 +19,7 @@
 
 
 /* include lib header files that you need here: */
+#include <time.h>//added
 #include <unistd.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -106,6 +107,8 @@ void processFinishedJob(int threadID);
 
 /*Search for a thread by its threadID*/
 tcb* findThread(int threadID);
+
+static void schedule();
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t

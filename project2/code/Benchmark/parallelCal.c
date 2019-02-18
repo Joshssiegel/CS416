@@ -27,7 +27,7 @@ int  sum = 0;
 
 /* A CPU-bound task to do parallel array addition */
 void parallel_calculate(void* arg) {
-	printf("Parallel Calculating %d\n ",*(int*)arg);//delete
+	printf("Starting Parallel Calculating %d\n ",*(int*)arg);//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
 
@@ -55,8 +55,11 @@ void verify() {
 	for (j = 0; j < R_SIZE; j += 1) {
 		for (i = 0; i < C_SIZE; ++i) {
 			pSum[j] += a[j][i] * i;
+			//printf("pSum is: %d\n",pSum[j]);
 		}
 	}
+	printf("Why am i not verifying?\n");
+
 	for (j = 0; j < R_SIZE; j += 1) {
 		sum += pSum[j];
 	}
@@ -109,7 +112,7 @@ int main(int argc, char **argv) {
 		pthread_join(thread[i], NULL);
 
 	clock_gettime(CLOCK_REALTIME, &end);
-    printf("running time: %lu micro-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
+    printf("running time: %lu milli-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
 
 	printf("sum is: %d\n", sum);
 
@@ -117,6 +120,7 @@ int main(int argc, char **argv) {
 	pthread_mutex_destroy(&mutex);
 
 	// feel free to verify your answer here:
+	printf("About to verify\n");
 	verify();
 
 	// Free memory on Heap
@@ -124,6 +128,6 @@ int main(int argc, char **argv) {
 	free(counter);
 	for (i = 0; i < R_SIZE; ++i)
 		free(a[i]);
-
+  printf("Done everything\n");
 	return 0;
 }
