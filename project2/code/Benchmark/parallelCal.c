@@ -109,7 +109,7 @@ int main(int argc, char **argv) {
 		pthread_join(thread[i], NULL);
 
 	clock_gettime(CLOCK_REALTIME, &end);
-    printf("running time: %lu micro-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
+    printf("running time: %lu milli-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
 
 	printf("sum is: %d\n", sum);
 
@@ -124,6 +124,6 @@ int main(int argc, char **argv) {
 	free(counter);
 	for (i = 0; i < R_SIZE; ++i)
 		free(a[i]);
-
+  printf("Done everything\n");
 	return 0;
 }

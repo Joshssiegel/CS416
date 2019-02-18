@@ -5,12 +5,14 @@
 // List all group member's name:
 // username of iLab:
 // iLab Server:
-// 
+//
 #include "my_pthread_t.h"
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
-ucontext_t parentContext;
+//ucontext_t scheduleContext=NULL;
+ucontext_t schedulerContext;
+//ucontext_t parentContext;
 
 threadQueue* threadQ=NULL;
 //ucontext_t processFinishedJobContext;
@@ -18,6 +20,34 @@ threadQueue* threadQ=NULL;
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
+  //First time we create a threadQ
+  //Initialize Scheduler Context
+  if(threadQ==NULL)
+  {
+    getcontext(&schedulerContext);
+    //where to return after function is done?
+    schedulerContext.uc_link=0;
+    //Define stack
+    schedulerContext.uc_stack.ss_sp=malloc(STACK_SIZE);
+    //Define stack size
+    schedulerContext.uc_stack.ss_size=STACK_SIZE;
+    //Set no flags
+    schedulerContext.uc_stack.ss_flags=0;
+    //Double check memory was allocated
+    if (schedulerContext.uc_stack.ss_sp == 0 )
+    {
+           perror("Could not allocate space for return context");
+           exit( 1 );
+    }
+    makecontext(&schedulerContext, (void*)&schedule, 0);
+  }
+  /* BLOCK TIMER FROM INTERRPTING
+  sigset_t signal_set;
+  sigemptyset(&signal_set);
+  sigaddset(&signal_set, SIGALRM);
+  //sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+
+
   printf("thread ID is? %d",thread);
 	// Create Thread Control Block
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
@@ -33,7 +63,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   //ucontext_t threadReturnContext;
   getcontext(&(new_tcb->return_context));
   //where to return after function is done?
-  (new_tcb->return_context).uc_link=&parentContext;
+  (new_tcb->return_context).uc_link=&schedulerContext;
   //Define stack
   (new_tcb->return_context).uc_stack.ss_sp=malloc(STACK_SIZE);
   //Define stack size
@@ -79,6 +109,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   //Add context to TCB
   if(threadQ==NULL)
   {
+
     signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
 
     //setting timer to fire every TIME_QUANTUM milliseconds
@@ -103,7 +134,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
     threadQ->tail->next=qNode;
     threadQ->tail=qNode;
   }
-
+  //ALLOW TIMER TO CONTINUE
+  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 	return 0;
 };
 
@@ -173,28 +205,37 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 	return 0;
 };
 
-
+struct timespec timeCheck;
+int firstSchedule=1;
 /* scheduler */
 static void schedule() {
   //TODO: context switch to schedule function
   // Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
-
+  struct timespec prev_time=timeCheck;
+  clock_gettime(CLOCK_REALTIME, &timeCheck);
+  if(!firstSchedule){
+    printf("scheduling time: %lu milli-seconds\n", (timeCheck.tv_sec - prev_time.tv_sec) * 1000 + (timeCheck.tv_nsec - prev_time.tv_nsec) / 1000000);
+  }
+  else{
+    printf("first schedule\n");
+    firstSchedule=0;
+  }
   //get the thread that was just running.
   queueNode* finishedThread=threadQ->head;
   if(finishedThread==NULL)
   {
-    printf("No jobs in queue\n");
+    //printf("No jobs in queue\n");
     return;
   }
   //Double check the top of queue was running
   if(finishedThread->thread_tcb->thread_status==READY){
     printf("Top of queue was not running.\n");
     finishedThread->thread_tcb->thread_status=RUNNING;
-    int swapStatus=swapcontext(&parentContext,&(finishedThread->thread_tcb->context));
-    if(swapStatus!=0){
-      printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
+    int setStatus=setcontext(&(finishedThread->thread_tcb->context));
+    if(setStatus!=0){
+      printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
       exit(0);
     }
     //exit(0);
@@ -293,6 +334,7 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   printf("Found thread!\n");
   finishedThread->thread_status=DONE;
+  free(finishedThread->context.uc_stack.ss_sp);
 }
 
 /*Search for a thread by its threadID*/
