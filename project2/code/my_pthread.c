@@ -12,7 +12,7 @@
 // YOUR CODE HERE
 //ucontext_t scheduleContext=NULL;
 ucontext_t schedulerContext;
-//ucontext_t parentContext;
+ucontext_t parentContext;
 
 threadQueue* threadQ=NULL;
 //ucontext_t processFinishedJobContext;
@@ -62,7 +62,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   //Experiment with finished Job context
   //ucontext_t threadReturnContext;
   getcontext(&(new_tcb->return_context));
-  //where to return after function is done?
+  //does a setContext to this context when done
   (new_tcb->return_context).uc_link=&schedulerContext;
   //Define stack
   (new_tcb->return_context).uc_stack.ss_sp=malloc(STACK_SIZE);
@@ -106,9 +106,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   queueNode* qNode =(queueNode*) malloc(sizeof(queueNode*));
   qNode->thread_tcb=new_tcb;
   qNode->next=NULL;
-  //Add context to TCB
-  if(threadQ==NULL)
-  {
+
+
 
     signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
 
@@ -122,10 +121,34 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
       perror("error calling setitimer()");
     }
 
-
+    if(threadQ==NULL)
+    {
+      /*
+      //ADD CALLER TO BE SCHEDULED?
+      queueNode* parentNode =(queueNode*) malloc(sizeof(queueNode*));
+      getcontext(&parentContext);
+      if(threadQ==NULL){
+        printf("NNULL\n");
+      tcb* parent_thread=(tcb*) malloc(sizeof(tcb));
+      parent_thread->priority=0;
+      parent_thread->time_quantum_counter=0;
+      parent_thread->threadId = 0;
+      parent_thread->thread_status=READY;
+      parent_thread->context=parentContext;
+      parentNode->thread_tcb=parent_thread;
+      parentNode->next=NULL;
+    }
+    else{
+      printf("Lol my crazy shit is working?\n");
+      return 0;
+    }*/
     threadQ=(threadQueue*) malloc(sizeof(threadQueue));
     //initialize the head and tail
     threadQ->head=qNode;
+
+    //threadQ->head->next=parentNode;//add parent function to be run
+
+    //threadQ->tail=parentNode;//for adding the callee
     threadQ->tail=qNode;
     //threadQ->head->thread_tcb->thread_status=RUNNING;
     printf("Made the queue\n");
@@ -144,7 +167,6 @@ int my_pthread_yield() {
 	// Change thread state from Running to Ready
 	// Save context of this thread to its thread control block
 	// Switch from thread context to scheduler context
-
 	// YOUR CODE HERE
 	return 0;
 };
@@ -201,7 +223,7 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
 /* destroy the mutex */
 int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 	// Deallocate dynamic memory created in my_pthread_mutex_init
-
+  printf("yo I am gonna like totally destroy you now\n");
 	return 0;
 };
 
@@ -213,6 +235,7 @@ static void schedule() {
   // Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
+  printf("scheduling\n");
   struct timespec prev_time=timeCheck;
   clock_gettime(CLOCK_REALTIME, &timeCheck);
   if(!firstSchedule){
@@ -233,6 +256,7 @@ static void schedule() {
   if(finishedThread->thread_tcb->thread_status==READY){
     printf("Top of queue was not running.\n");
     finishedThread->thread_tcb->thread_status=RUNNING;
+    //Finished thread never actuall ran, so run it.
     int setStatus=setcontext(&(finishedThread->thread_tcb->context));
     if(setStatus!=0){
       printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
@@ -249,12 +273,14 @@ static void schedule() {
     if(threadToRun==NULL)
     {
       printf("No more threads to run\n");
+      //continue;
     }
     else{
       threadToRun->thread_tcb->thread_status=RUNNING;
       //Swap context
-      //Old Context (or this context??) to new context
-      int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+      //Set context starts from the top
+      //int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+      int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
       if(setStatus!=0){
         printf("OOPSIES, Set no work, error is: %d \nI'm exiting now\n",setStatus);
         exit(0);
@@ -275,11 +301,11 @@ static void schedule() {
   //Setup next thread to run
   queueNode* threadToRun=threadQ->head;
   threadToRun->thread_tcb->thread_status=RUNNING;
-  //Swap context
-  //Old Context (or this context??) to new context
-  int swapStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
-  if(swapStatus!=0){
-    printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",swapStatus);
+  //Swap context saves lace in old context for later
+  int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
+  //int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+  if(setStatus!=0){
+    printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
     exit(0);
   }
   //printf("\nswap staus should be 0:  %d\n",swapStatus);
@@ -305,7 +331,9 @@ static void schedule() {
 }
 
 void SIGALRM_Handler(){
+  //setcontext(&schedulerContext);
   schedule();
+  printf("Ok resumin now\n");
 }
 
 
