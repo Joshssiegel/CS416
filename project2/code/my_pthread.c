@@ -13,13 +13,14 @@
 //ucontext_t scheduleContext=NULL;
 ucontext_t schedulerContext;
 ucontext_t parentContext;
-
+threadCounter=0;
 threadQueue* threadQ=NULL;
 //ucontext_t processFinishedJobContext;
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
+  *thread=++threadCounter;
   //First time we create a threadQ
   //Initialize Scheduler Context
   if(threadQ==NULL)
@@ -48,12 +49,12 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   //sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
 
 
-  printf("thread ID is? %d",thread);
+  printf("thread ID is? %d",*thread);
 	// Create Thread Control Block
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
   new_tcb->priority=0;
   new_tcb->time_quantum_counter=0;
-  new_tcb->threadId = thread;
+  new_tcb->threadId = *thread;
   new_tcb->thread_status=READY;
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
@@ -123,34 +124,11 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
 
     if(threadQ==NULL)
     {
-      /*
-      //ADD CALLER TO BE SCHEDULED?
-      queueNode* parentNode =(queueNode*) malloc(sizeof(queueNode*));
-      getcontext(&parentContext);
-      if(threadQ==NULL){
-        printf("NNULL\n");
-      tcb* parent_thread=(tcb*) malloc(sizeof(tcb));
-      parent_thread->priority=0;
-      parent_thread->time_quantum_counter=0;
-      parent_thread->threadId = 0;
-      parent_thread->thread_status=READY;
-      parent_thread->context=parentContext;
-      parentNode->thread_tcb=parent_thread;
-      parentNode->next=NULL;
-    }
-    else{
-      printf("Lol my crazy shit is working?\n");
-      return 0;
-    }*/
+
     threadQ=(threadQueue*) malloc(sizeof(threadQueue));
     //initialize the head and tail
     threadQ->head=qNode;
-
-    //threadQ->head->next=parentNode;//add parent function to be run
-
-    //threadQ->tail=parentNode;//for adding the callee
     threadQ->tail=qNode;
-    //threadQ->head->thread_tcb->thread_status=RUNNING;
     printf("Made the queue\n");
   }
   else{
@@ -167,6 +145,7 @@ int my_pthread_yield() {
 	// Change thread state from Running to Ready
 	// Save context of this thread to its thread control block
 	// Switch from thread context to scheduler context
+
 	// YOUR CODE HERE
 	return 0;
 };
@@ -181,13 +160,52 @@ void my_pthread_exit(void *value_ptr) {
 
 /* wait for thread termination */
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
+
+  printf("\n\n\n\n\n******************JOIN**************\n");
 	// Waiting for a specific thread to terminate
 	// Once this thread finishes,
 	// Deallocated any dynamic memory created when starting this thread
-
 	// YOUR CODE HERE
+  //TODO: returning Value_ptr
+
+  //First, check if thread is in the queueNode
+  tcb* thread_to_join=findThread(thread);
+  //If thread is in queue, check its status
+    //If thread status is Done, free it, and swap context with Parent
+    //If thread status is READY or RUNNING, yield CPU
+  //If thread is not in queueNode, set context to parent
+  if(thread_to_join==NULL){
+    printf("Thread to join (%d) on is no longer in queue\n",thread);
+    /*int setStatus=setContext(&parentContext);
+    if(setStatus){
+      printf("Error setting context, exiting\n");
+      exit(1);
+    }*/
+    //TODO: Return value_ptr if not nULL
+    return 0;
+  }
+  //Thread is in Queue
+  else{
+    //If thread is Not done, yield CPU
+    if(thread_to_join->thread_status!=DONE){
+      printf("thread to join (%d) is still executing, yielding CPU\n",thread);
+      //my_pthread_yield();
+      //WHAT DO WE DO HERE???
+    }
+    //If thread is done, free and return? or setContext to Main?
+    else{
+      printf("thread to join (%d) is done\n",thread);
+      free(thread_to_join->context.uc_stack.ss_sp);
+      free(thread_to_join->return_context.uc_stack.ss_sp);
+      free(thread_to_join);
+      //TODO: Remove thread from Queue
+      //TODO: Return value_ptr if not nULL
+      return 0;
+  }
+  printf("Shouldn't reach here (end of join)\n");
 	return 0;
-};
+}
+}
 
 /* initialize the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex,
@@ -235,7 +253,7 @@ static void schedule() {
   // Every time when timer interrup happens, your thread library
 	// should be contexted switched from thread context to this
 	// schedule function
-  printf("scheduling\n");
+  //printf("scheduling\n");
   struct timespec prev_time=timeCheck;
   clock_gettime(CLOCK_REALTIME, &timeCheck);
   if(!firstSchedule){
@@ -337,7 +355,7 @@ static void schedule() {
 void SIGALRM_Handler(){
   //setcontext(&schedulerContext);
   schedule();
-  printf("Ok resumin now\n");
+  //printf("Ok resumin now\n");
 }
 
 
@@ -381,17 +399,13 @@ tcb* findThread(int threadID){
   queueNode* head=threadQ->head;
   printf("about to search list for thread %d\n",threadID);
   if((int)(head->thread_tcb->threadId)==(int)(threadID)){
+    printf("found as head\n");
     return head->thread_tcb;
   }
-  else{
-    printf("these two not equal: %d vs %d \n",head->thread_tcb->threadId,threadID);
-  }
-  printf("not head \n");
-  while((int)(head->thread_tcb->threadId)==(int)(threadID) && head!=NULL){
+  while(head!=NULL && (int)(head->thread_tcb->threadId)!=(int)(threadID) ){
     printf("ID: %d\n",head->thread_tcb->threadId);
     head=head->next;
   }
-  printf("Reached end of list\n");
 
   //Reached end of list
   if(head==NULL)
@@ -400,5 +414,6 @@ tcb* findThread(int threadID){
     return NULL;
   }
   //Thread found
+  printf("found thread? %d\n",head->thread_tcb->threadId);
   return head->thread_tcb;
 }

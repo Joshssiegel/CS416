@@ -107,7 +107,7 @@ int main(int argc, char **argv) {
 		pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]);
 
 	//my_pthread_schedule(0);
-
+	printf("ABOUT TO JOIN\n");
 	for (i = 0; i < thread_num; ++i)
 		pthread_join(thread[i], NULL);
 
@@ -120,7 +120,6 @@ int main(int argc, char **argv) {
 	pthread_mutex_destroy(&mutex);
 
 	// feel free to verify your answer here:
-	printf("About to verify\n");
 	verify();
 
 	// Free memory on Heap
