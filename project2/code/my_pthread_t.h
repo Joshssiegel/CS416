@@ -15,7 +15,7 @@
 #define USE_MY_PTHREAD 1
 
 #define STACK_SIZE 1048576//A megabyte
-#define TIME_QUANTUM 1//milliseconds
+#define TIME_QUANTUM 10//milliseconds
 
 
 /* include lib header files that you need here: */

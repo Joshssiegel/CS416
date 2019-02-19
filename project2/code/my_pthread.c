@@ -250,14 +250,17 @@ static void schedule() {
   if(finishedThread==NULL)
   {
     //printf("No jobs in queue\n");
-    return;
+    //TODO: Set main
+    setcontext(&parentContext);
+
   }
   //Double check the top of queue was running
   if(finishedThread->thread_tcb->thread_status==READY){
     printf("Top of queue was not running.\n");
     finishedThread->thread_tcb->thread_status=RUNNING;
     //Finished thread never actuall ran, so run it.
-    int setStatus=setcontext(&(finishedThread->thread_tcb->context));
+    // int setStatus=setcontext(&(finishedThread->thread_tcb->context));
+    int setStatus=swapcontext(&parentContext, &(finishedThread->thread_tcb->context));
     if(setStatus!=0){
       printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
       exit(0);
@@ -268,19 +271,20 @@ static void schedule() {
   {
     printf("thread is done, removing\n");
     threadQ->head=finishedThread->next;
-    free(finishedThread);
+    // free(finishedThread); ADD THIS
     queueNode* threadToRun=threadQ->head;
     if(threadToRun==NULL)
     {
       printf("No more threads to run\n");
+      setcontext(&parentContext); // done executing everything in Q, switching back to main
       //continue;
     }
     else{
       threadToRun->thread_tcb->thread_status=RUNNING;
       //Swap context
       //Set context starts from the top
-      //int setStatus=setcontext(&(threadToRun->thread_tcb->context));
-      int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
+      int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+      //int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
       if(setStatus!=0){
         printf("OOPSIES, Set no work, error is: %d \nI'm exiting now\n",setStatus);
         exit(0);
@@ -362,7 +366,7 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   printf("Found thread!\n");
   finishedThread->thread_status=DONE;
-  free(finishedThread->context.uc_stack.ss_sp);
+  // free(finishedThread->context.uc_stack.ss_sp);
 }
 
 /*Search for a thread by its threadID*/

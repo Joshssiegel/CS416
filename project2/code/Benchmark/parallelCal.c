@@ -58,12 +58,12 @@ void verify() {
 			//printf("pSum is: %d\n",pSum[j]);
 		}
 	}
-	printf("Why am i not verifying?\n");
+	printf("\nWhy am i not verifying?\n");
 
 	for (j = 0; j < R_SIZE; j += 1) {
 		sum += pSum[j];
 	}
-	printf("verified sum is: %d\n", sum);
+	printf("\nverified sum is: %d\n", sum);
 }
 
 int main(int argc, char **argv) {
@@ -124,10 +124,10 @@ int main(int argc, char **argv) {
 	verify();
 
 	// Free memory on Heap
-	free(thread);
-	free(counter);
-	for (i = 0; i < R_SIZE; ++i)
-		free(a[i]);
+	 free(thread);
+	 free(counter);
+	// for (i = 0; i < R_SIZE; ++i)
+	// 	free(a[i]);
   printf("Done everything\n");
 	return 0;
 }
