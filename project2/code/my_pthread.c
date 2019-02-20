@@ -20,7 +20,7 @@ threadQueue* threadQ=NULL;
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
-  *thread=++threadCounter;
+  *thread=++threadCounter; //???????????????????????????????????????????????????????????????????????????????????
   //First time we create a threadQ
   //Initialize Scheduler Context
   if(threadQ==NULL)
@@ -56,6 +56,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   new_tcb->time_quantum_counter=0;
   new_tcb->threadId = *thread;
   new_tcb->thread_status=READY;
+  new_tcb->join_boolean=0; //FALSE
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
 	// After everything is all set, push this thread into run queue
@@ -81,7 +82,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   //makecontext(&processFinishedJobContext, (void*)&processFinishedJob, 0);
 
 
-  printf("\nWE CREATED A THREAD YALL\n");
+  printf("\nWE CREATED A THREAD (%d) YALL\n", *thread);
   ucontext_t newThreadContext;
   getcontext(&newThreadContext);
   //where to return after function is done?
@@ -109,22 +110,11 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   qNode->next=NULL;
 
 
+  signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
+  start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
 
-    signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
-
-    //setting timer to fire every TIME_QUANTUM milliseconds
-    struct itimerval it_val;
-    it_val.it_value.tv_sec =  TIME_QUANTUM/1000;
-    it_val.it_value.tv_usec =  (TIME_QUANTUM*1000) % 1000000;
-    it_val.it_interval = it_val.it_value;
-
-    if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
-      perror("error calling setitimer()");
-    }
-
-    if(threadQ==NULL)
-    {
-
+  if(threadQ==NULL)
+  {
     threadQ=(threadQueue*) malloc(sizeof(threadQueue));
     //initialize the head and tail
     threadQ->head=qNode;
@@ -161,7 +151,7 @@ void my_pthread_exit(void *value_ptr) {
 /* wait for thread termination */
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 
-  printf("\n\n\n\n\n******************JOIN**************\n");
+  printf("\n\n\n\n\n******************JOIN (%d)**************\n", thread);
 	// Waiting for a specific thread to terminate
 	// Once this thread finishes,
 	// Deallocated any dynamic memory created when starting this thread
@@ -176,11 +166,13 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
   //If thread is not in queueNode, set context to parent
   if(thread_to_join==NULL){
     printf("Thread to join (%d) on is no longer in queue\n",thread);
-    /*int setStatus=setContext(&parentContext);
+    /*
+    int setStatus=setcontext(&parentContext);
     if(setStatus){
       printf("Error setting context, exiting\n");
       exit(1);
-    }*/
+    }
+    */
     //TODO: Return value_ptr if not nULL
     return 0;
   }
@@ -189,6 +181,10 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
     //If thread is Not done, yield CPU
     if(thread_to_join->thread_status!=DONE){
       printf("thread to join (%d) is still executing, yielding CPU\n",thread);
+      thread_to_join->join_boolean = 1;
+      // SWAP TO SCHEDULER schedule()???? swapcontext()????
+      schedule();
+      // setcontext(&schedulerContext);
       //my_pthread_yield();
       //WHAT DO WE DO HERE???
     }
@@ -288,6 +284,11 @@ static void schedule() {
   else if(finishedThread->thread_tcb->thread_status==DONE)
   {
     printf("thread is done, removing\n");
+    if(finishedThread->thread_tcb->join_boolean==1){
+      //swap to main
+      printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
+      setcontext(&parentContext);
+    }
     threadQ->head=finishedThread->next;
     // free(finishedThread); ADD THIS
     queueNode* threadToRun=threadQ->head;
@@ -398,22 +399,40 @@ tcb* findThread(int threadID){
   //Linear search through Queue for threadID
   queueNode* head=threadQ->head;
   printf("about to search list for thread %d\n",threadID);
+  if(head==NULL){
+    printf("head was NULL while searching for thread # (%d)\n", threadID);
+    return NULL;
+  }
   if((int)(head->thread_tcb->threadId)==(int)(threadID)){
     printf("found as head\n");
     return head->thread_tcb;
   }
   while(head!=NULL && (int)(head->thread_tcb->threadId)!=(int)(threadID) ){
     printf("ID: %d\n",head->thread_tcb->threadId);
+    if((int)(head->thread_tcb->threadId)==(int)(threadID)){
+      return head->thread_tcb;
+    }
     head=head->next;
   }
 
   //Reached end of list
   if(head==NULL)
   {
-    printf("Thread not found.\n");
+    printf("Thread (%d) not found.\n", threadID);
     return NULL;
   }
   //Thread found
   printf("found thread? %d\n",head->thread_tcb->threadId);
   return head->thread_tcb;
+}
+
+void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
+  struct itimerval it_val;
+  it_val.it_value.tv_sec =  timeQ/1000;
+  it_val.it_value.tv_usec =  (TIME_QUANTUM*1000) % 1000000;
+  it_val.it_interval = it_val.it_value;
+
+  if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
+    perror("error calling setitimer()");
+  }
 }

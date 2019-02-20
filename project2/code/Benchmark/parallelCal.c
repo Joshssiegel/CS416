@@ -108,8 +108,10 @@ int main(int argc, char **argv) {
 
 	//my_pthread_schedule(0);
 	printf("ABOUT TO JOIN\n");
-	for (i = 0; i < thread_num; ++i)
+	for (i = 0; i < thread_num; ++i){
+		printf("JOINING ON (%d)\n", thread[i]);
 		pthread_join(thread[i], NULL);
+	}
 
 	clock_gettime(CLOCK_REALTIME, &end);
     printf("running time: %lu milli-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
@@ -123,10 +125,13 @@ int main(int argc, char **argv) {
 	verify();
 
 	// Free memory on Heap
-	 free(thread);
-	 free(counter);
+	// printf("\nfreeing thread array\n");
+	//  free(thread);
+	//  printf("\nfreeing counter\n");
+	//  free(counter);
+	//  printf("\nfreeing a[i]\n");
 	// for (i = 0; i < R_SIZE; ++i)
 	// 	free(a[i]);
-  printf("Done everything\n");
+  printf("Done everything!@#$^&*&^$#@!@#$^&^$#@!\n");
 	return 0;
 }
