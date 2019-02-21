@@ -42,11 +42,11 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
     }
     makecontext(&schedulerContext, (void*)&schedule, 0);
   }
-  /* BLOCK TIMER FROM INTERRPTING
+   //BLOCK TIMER FROM INTERRPTING
   sigset_t signal_set;
   sigemptyset(&signal_set);
   sigaddset(&signal_set, SIGALRM);
-  //sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
 
 
   printf("thread ID is? %d",*thread);
@@ -126,7 +126,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
     threadQ->tail=qNode;
   }
   //ALLOW TIMER TO CONTINUE
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 	return 0;
 };
 
@@ -137,15 +137,22 @@ int my_pthread_yield() {
 	// Switch from thread context to scheduler context
 
 	// YOUR CODE HERE
+  SIGALRM_Handler();
 	return 0;
 };
 
 /* terminate a thread */
 void my_pthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
+  //getTopOfQueue
+  queueNode* finishedQNode=threadQ->head;//getTopOfQueue();
+  tcb* finishedThread=finishedQNode->thread_tcb;
+  //Set to done
+  printf("\nA job just decided to exit with ID %d \n",finishedThread->threadId);
+  finishedThread->thread_status=DONE;
+  SIGALRM_Handler();
 
-	// YOUR CODE HERE
-};
+}
 
 
 /* wait for thread termination */
@@ -377,13 +384,13 @@ void SIGALRM_Handler(){
   //schedule();
   //printf("Ok resumin now\n");
   //get the thread that was just running.
-  printf("Interrupted!\n");
+  //printf("Interrupted!\n");
   queueNode* finishedThread= getTopOfQueue();
     //No jobs in queue
   if(finishedThread==NULL)
   {
     //printf("No jobs in queue\n");
-    printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+    //printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
     // setcontext(&parentContext);
     return;
 
@@ -429,7 +436,8 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   printf("Found thread!\n");
   finishedThread->thread_status=DONE;
-  // free(finishedThread->context.uc_stack.ss_sp);
+  free(finishedThread->context.uc_stack.ss_sp);
+  SIGALRM_Handler();
 }
 
 /*Search for a thread by its threadID*/

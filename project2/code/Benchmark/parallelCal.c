@@ -44,6 +44,8 @@ void parallel_calculate(void* arg) {
 		pthread_mutex_unlock(&mutex);
 	}
 	printf("finished function parallel calculate %d\n",*(int*)arg);
+	pthread_exit(NULL);
+
 }
 
 /* verification function */
@@ -58,7 +60,7 @@ void verify() {
 			//printf("pSum is: %d\n",pSum[j]);
 		}
 	}
-	printf("\nWhy am i not verifying?\n");
+	printf("\nverifying?\n");
 
 	for (j = 0; j < R_SIZE; j += 1) {
 		sum += pSum[j];
