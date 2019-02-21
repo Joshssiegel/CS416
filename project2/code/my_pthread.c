@@ -497,7 +497,7 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
   queueNode* head=threadQ->head;
 
   if(head==NULL){
-    printf("Head is NULL\n");
+    // printf("Head is NULL\n");
     return NULL;
   }
   else{
