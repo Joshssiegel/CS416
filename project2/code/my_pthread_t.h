@@ -112,6 +112,13 @@ tcb* findThread(int threadID);
 
 static void schedule();
 
+queueNode* getTopOfQueue();
+
+queueNode *getNextToRun();
+
+void removeFromQueue(queueNode *finishedThread);
+
+
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
 #define pthread_mutex_t my_pthread_mutex_t

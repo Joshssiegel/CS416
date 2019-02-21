@@ -263,7 +263,8 @@ static void schedule() {
 
   }
   //get the thread that was just running.
-  queueNode* finishedThread=threadQ->head;
+  // queueNode* finishedThread=threadQ->head;
+  queueNode* finishedThread=getTopOfQueue();
   //No jobs in queue
   if(finishedThread==NULL)
   {
@@ -294,8 +295,10 @@ static void schedule() {
   {
     printf("thread is done, removing\n");
 
-    threadQ->head=finishedThread->next;
-    queueNode* threadToRun=threadQ->head;
+    // threadQ->head=finishedThread->next; // removing
+    removeFromQueue(finishedThread);
+    // queueNode* threadToRun=threadQ->head; // get next to run
+    queueNode* threadToRun=getNextToRun(); // get next to run
     if(finishedThread->thread_tcb->join_boolean==1){
       //swap to main
       printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
@@ -333,7 +336,8 @@ static void schedule() {
   threadQ->head=threadQ->head->next;
   finishedThread->next=NULL;
   //Setup next thread to run
-  queueNode* threadToRun=threadQ->head;
+  // queueNode* threadToRun=threadQ->head;
+  queueNode* threadToRun=getNextToRun();
   threadToRun->thread_tcb->thread_status=RUNNING;
   //Swap context saves lace in old context for later
   //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
@@ -374,7 +378,7 @@ void SIGALRM_Handler(){
   //printf("Ok resumin now\n");
   //get the thread that was just running.
   printf("Interrupted!\n");
-  queueNode* finishedThread=threadQ->head;
+  queueNode* finishedThread= getTopOfQueue();
     //No jobs in queue
   if(finishedThread==NULL)
   {
@@ -475,4 +479,37 @@ void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
   if (setitimer(ITIMER_REAL, &it_val, NULL) == -1) {
     perror("error calling setitimer()");
   }
+}
+
+queueNode* getTopOfQueue(){ // returns top of queue according to current scheduling paradigm
+  if(threadQ==NULL){
+    printf("Queue is NULL!!!\n");
+    return NULL;
+  }
+  queueNode* head=threadQ->head;
+
+  if(head==NULL){
+    printf("Head is NULL\n");
+    return NULL;
+  }
+  else{
+    return head;
+  }
+  // ifndef MLFQ
+  // MLFQ top of queue
+}
+
+void removeFromQueue(queueNode *finishedThread){
+  //Gonna have to change this logic
+  // CURRENTLY this function removes whatever is the HEAD of the Q
+  threadQ->head=finishedThread->next;
+  return;
+  //TODO: implement other types of removing from Q's and multi level Q's
+}
+
+queueNode *getNextToRun(){
+  queueNode *nextThread = threadQ->head;
+
+  //TODO: implement other types of returning next from Q's and multi level Q's
+  return nextThread;
 }
