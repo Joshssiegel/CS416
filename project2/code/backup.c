@@ -23,10 +23,10 @@ mutexNode* mutexList=NULL;
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
   //BLOCK TIMER FROM INTERRPTING
- /*sigset_t signal_set;
+ sigset_t signal_set;
  sigemptyset(&signal_set);
  sigaddset(&signal_set, SIGALRM);
- sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+ sigprocmask(SIG_BLOCK, &signal_set, NULL);
   *thread=++threadCounter;
   //First time we create a threadQ
   //Initialize Scheduler Context
@@ -129,7 +129,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
     threadQ->tail=qNode;
   }
   //ALLOW TIMER TO CONTINUE
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 	return 0;
 };
 
@@ -251,7 +251,6 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
   else{
     //check that it hasn't already been locked
     while(mutexToLock->mutex->isLocked==1){// we want to yield to other threads, until critical section is unlocked
-        printf("mutex is locked, yielding cpu\n");
         my_pthread_yield();
     }
     mutexToLock->mutex->isLocked = 1;
@@ -311,10 +310,10 @@ static void schedule() {
 	// schedule function
   //printf("scheduling\n");
   //Prevent schedule from being interrupted
-  /*sigset_t signal_set;
+  sigset_t signal_set;
   sigemptyset(&signal_set);
   sigaddset(&signal_set, SIGALRM);
-  sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
 
 
   struct timespec prev_time=timeCheck;
@@ -337,7 +336,7 @@ static void schedule() {
     //TODO: Set main
     printf("we already switched to main, this should never print\n");
     //ALLOW TIMER TO CONTINUE
-    //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
     int setStatus=setcontext(&parentContext);
     if(setStatus!=0){
       printf("\nSwap error but shouldnt be here anyway, error is: %d \nI'm exiting now\n",setStatus);
@@ -353,7 +352,7 @@ static void schedule() {
 
     //TODO: Make sure main was saved in sigalarm
     //ALLOW TIMER TO CONTINUE
-    //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
     int setStatus=setcontext(&(finishedThread->thread_tcb->context));
     if(setStatus!=0){
       printf("\nOOPSIES, Swap no work in starting top of queue, error is: %d \nI'm exiting now\n",setStatus);
@@ -377,7 +376,7 @@ static void schedule() {
       printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
       // free(finishedThread); ADD THIS
       //ALLOW TIMER TO CONTINUE
-      //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
       int setStatus=setcontext(&parentContext);
       if(setStatus!=0){
         printf("\nOOPSIES, Swap no work before returning to join, error is: %d \nI'm exiting now\n",setStatus);
@@ -387,9 +386,9 @@ static void schedule() {
     // free(finishedThread); ADD THIS
     if(threadToRun==NULL)
     {
-      printf("No more threads to run after removing last thread switching back to main\n");
+      printf("No more threads to run\n");
       //ALLOW TIMER TO CONTINUE
-      //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
       int setStatus=setcontext(&parentContext); // done executing everything in Q, switching back to main
       if(setStatus!=0){
         printf("\nOOPSIES, Swap no work when no threads to run, error is: %d \nI'm exiting now\n",setStatus);
@@ -404,7 +403,7 @@ static void schedule() {
       //Swap context
       //Set context starts from the top
       //ALLOW TIMER TO CONTINUE
-      //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
       int setStatus=setcontext(&(threadToRun->thread_tcb->context));
       //int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
       if(setStatus!=0){
@@ -431,13 +430,13 @@ static void schedule() {
   //Swap context saves lace in old context for later
   //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
   //ALLOW TIMER TO CONTINUE
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   int setStatus=setcontext(&(threadToRun->thread_tcb->context));
   if(setStatus!=0){
     printf("OOPSIES, Swap no work between threads, error is: %d \nI'm exiting now\n",setStatus);
     exit(0);
   }
-  printf("\nset staus should be 0 after swapping two threads:  %d\n",setStatus);
+  //printf("\nswap staus should be 0:  %d\n",swapStatus);
 }
 
 	// Invoke different actual scheduling algorithms
@@ -445,7 +444,7 @@ static void schedule() {
   printf("end of scheduler, should not be here,\n");
   printf("Setting context back to main\n");
   //ALLOW TIMER TO CONTINUE
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   setcontext(&parentContext);
 	// if (sched == STCF)
 	//		sched_stcf();
@@ -470,39 +469,28 @@ void SIGALRM_Handler(){
   //schedule();
   //printf("Ok resumin now\n");
   //get the thread that was just running.
-  printf("Interrupted!\n");
-  queueNode* finishedThread=getTopOfQueue();
-  if(firstSchedule==1){
-    printf("getting main context\n");
-    getcontext(&parentContext);
-  }
+  //printf("Interrupted!\n");
+  queueNode* finishedThread= getTopOfQueue();
     //No jobs in queue
   if(finishedThread==NULL)
   {
     printf("No jobs in queue\n");
-    printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+    //printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+    // setcontext(&parentContext);
     return;
-    //setcontext(&parentContext);
+
   }
   //Check if top of queue is ready
-  else if(finishedThread->thread_tcb->thread_status==READY){
-    printf("\nInterrupted from Main we think, switching to schedule context\n");
-    int swapStatus=swapcontext(&parentContext,&schedulerContext);
-    if(swapStatus!=0){
-      printf("Error swapping main and scheduler: %d\n",swapStatus);
-    }
-     printf("\nResuming Main\n");
-     return;
+  if(finishedThread->thread_tcb->thread_status==READY){
+    printf("\nInterrupted from Main, switching to schedule context\n");
+    swapcontext(&parentContext,&schedulerContext);
+    printf("Resuming Main\n");
   }
   //top of queue was Running or Done
   else{
     printf("\ninterrupted from thread %d\n",(threadQ->head->thread_tcb->threadId));
-    int swapStatus=swapcontext(&(threadQ->head->thread_tcb->context),&schedulerContext);
-    if(swapStatus!=0){
-      printf("Error swapping top of queue and scheduler: %d\n",swapStatus);
-    }
+    swapcontext(&(threadQ->head->thread_tcb->context),&schedulerContext);
     printf("resuming thread %d\n",(threadQ->head->thread_tcb->threadId));
-    return;
   }
 
 }
@@ -529,18 +517,18 @@ static void sched_mlfq() {
 // YOUR CODE HERE
 //Marks finished Threads as DONE
 void processFinishedJob(int threadID){
-  /*sigset_t signal_set;
+  sigset_t signal_set;
   sigemptyset(&signal_set);
   sigaddset(&signal_set, SIGALRM);
-  sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+  sigprocmask(SIG_BLOCK, &signal_set, NULL);
   printf("\nA job just finished!!!! with ID %d (This is so good :) \n",threadID);
   tcb* finishedThread=findThread(threadID);
   printf("Found thread! about to interrupt to remove this thread!\n");
   finishedThread->thread_status=DONE;
   free(finishedThread->context.uc_stack.ss_sp);
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
-
   SIGALRM_Handler();
+  //ALLOW TIMER TO CONTINUE
+  sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
 }
 
 /*Search for a thread by its threadID*/
@@ -600,7 +588,7 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
   queueNode* head=threadQ->head;
 
   if(head==NULL){
-     printf("Head is NULL\n");
+    // printf("Head is NULL\n");
     return NULL;
   }
   else{
