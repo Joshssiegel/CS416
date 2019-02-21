@@ -63,6 +63,12 @@ typedef struct my_pthread_mutex_t {
 	// YOUR CODE HERE
 } my_pthread_mutex_t;
 
+//mutex list definition
+typedef struct _mutexNode {
+  struct _mutexNode next;
+  my_pthread_mutex_t *mutex;
+} mutexNode;
+
 /* define your data structures here: */
 // Feel free to add your own auxiliary data structures (linked list or queue etc...)
 typedef struct _queueNode{
