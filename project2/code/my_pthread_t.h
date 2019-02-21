@@ -117,7 +117,7 @@ queueNode* getTopOfQueue();
 queueNode *getNextToRun();
 
 void removeFromQueue(queueNode *finishedThread);
-
+void start_timer(int);
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t

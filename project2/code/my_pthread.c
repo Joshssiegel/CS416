@@ -13,7 +13,7 @@
 //ucontext_t scheduleContext=NULL;
 ucontext_t schedulerContext;
 ucontext_t parentContext;
-threadCounter=0;
+int threadCounter=0;
 threadQueue* threadQ=NULL;
 //ucontext_t processFinishedJobContext;
 

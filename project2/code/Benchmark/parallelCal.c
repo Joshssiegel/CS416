@@ -134,6 +134,6 @@ int main(int argc, char **argv) {
 	//  printf("\nfreeing a[i]\n");
 	// for (i = 0; i < R_SIZE; ++i)
 	// 	free(a[i]);
-  printf("Done everything!@#$^&*&^$#@!@#$^&^$#@!\n");
+  printf("********Done everything!!!!!!!!!**********\n");
 	return 0;
 }
