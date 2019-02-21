@@ -58,9 +58,10 @@ typedef struct threadControlBlock {
 
 /* mutex struct definition */
 typedef struct my_pthread_mutex_t {
-	/* add something here */
-
-	// YOUR CODE HERE
+  //Unique identiier for the mutex
+  int mutexId;
+  //Test and Set variable
+  int isLocked;
 } my_pthread_mutex_t;
 
 //mutex list definition
@@ -123,7 +124,7 @@ queueNode* getTopOfQueue();
 queueNode *getNextToRun();
 
 void removeFromQueue(queueNode *finishedThread);
-
+void start_timer(int);
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
