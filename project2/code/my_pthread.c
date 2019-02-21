@@ -183,8 +183,10 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
       printf("thread to join (%d) is still executing, yielding CPU\n",thread);
       thread_to_join->join_boolean = 1;
       // SWAP TO SCHEDULER schedule()???? swapcontext()????
-      schedule();
-      // setcontext(&schedulerContext);
+      //schedule();
+      SIGALRM_Handler();
+      printf("Done yielding the CPU\n");
+      return 0;
       //my_pthread_yield();
       //WHAT DO WE DO HERE???
     }
@@ -237,7 +239,7 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
 /* destroy the mutex */
 int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 	// Deallocate dynamic memory created in my_pthread_mutex_init
-  printf("yo I am gonna like totally destroy you now\n");
+  printf("yo I am gonna like totally destroy you (a mutex) now\n");
 	return 0;
 };
 
@@ -258,40 +260,49 @@ static void schedule() {
   else{
     printf("first schedule\n");
     firstSchedule=0;
+
   }
   //get the thread that was just running.
   queueNode* finishedThread=threadQ->head;
+  //No jobs in queue
   if(finishedThread==NULL)
   {
     //printf("No jobs in queue\n");
     //TODO: Set main
+    printf("we already switched to main, this should never print\n");
     setcontext(&parentContext);
 
   }
-  //Double check the top of queue was running
+  //Check if top of queue is ready
   if(finishedThread->thread_tcb->thread_status==READY){
-    printf("Top of queue was not running.\n");
+    printf("Top of queue was not running (ready).\n");
     finishedThread->thread_tcb->thread_status=RUNNING;
     //Finished thread never actuall ran, so run it.
     // int setStatus=setcontext(&(finishedThread->thread_tcb->context));
-    int setStatus=swapcontext(&parentContext, &(finishedThread->thread_tcb->context));
+
+    //TODO: Make sure main was saved in sigalarm
+    int setStatus=setcontext(&(finishedThread->thread_tcb->context));
     if(setStatus!=0){
       printf("\nOOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
       exit(0);
     }
+    printf("should never reach here 1.\n");
     //exit(0);
   }
+  //Top of queue has finished executing
   else if(finishedThread->thread_tcb->thread_status==DONE)
   {
     printf("thread is done, removing\n");
+
+    threadQ->head=finishedThread->next;
+    queueNode* threadToRun=threadQ->head;
     if(finishedThread->thread_tcb->join_boolean==1){
       //swap to main
       printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
+      // free(finishedThread); ADD THIS
       setcontext(&parentContext);
     }
-    threadQ->head=finishedThread->next;
     // free(finishedThread); ADD THIS
-    queueNode* threadToRun=threadQ->head;
     if(threadToRun==NULL)
     {
       printf("No more threads to run\n");
@@ -325,8 +336,8 @@ static void schedule() {
   queueNode* threadToRun=threadQ->head;
   threadToRun->thread_tcb->thread_status=RUNNING;
   //Swap context saves lace in old context for later
-  int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
-  //int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+  //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
+  int setStatus=setcontext(&(threadToRun->thread_tcb->context));
   if(setStatus!=0){
     printf("OOPSIES, Swap no work, error is: %d \nI'm exiting now\n",setStatus);
     exit(0);
@@ -336,7 +347,9 @@ static void schedule() {
 
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
-  printf("done scheduling my dude\n");
+  printf("end of scheduler, should not be here,\n");
+  printf("Setting context back to main\n");
+  setcontext(&parentContext);
 	// if (sched == STCF)
 	//		sched_stcf();
 	// else if (sched == MLFQ)
@@ -354,9 +367,36 @@ static void schedule() {
 }
 
 void SIGALRM_Handler(){
-  //setcontext(&schedulerContext);
-  schedule();
+  //TODO: Check if parentContext is the one who was interrupted. Could be thread or Main
+  //swapcontext(&parentContext,&schedulerContext);
+
+  //schedule();
   //printf("Ok resumin now\n");
+  //get the thread that was just running.
+  printf("Interrupted!\n");
+  queueNode* finishedThread=threadQ->head;
+    //No jobs in queue
+  if(finishedThread==NULL)
+  {
+    //printf("No jobs in queue\n");
+    printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+    // setcontext(&parentContext);
+    return;
+
+  }
+  //Check if top of queue is ready
+  if(finishedThread->thread_tcb->thread_status==READY){
+    printf("\nInterrupted from Main, switching to schedule context\n");
+    swapcontext(&parentContext,&schedulerContext);
+    printf("Resuming Main\n");
+  }
+  //top of queue was Running or Done
+  else{
+    printf("\ninterrupted from thread %d\n",(threadQ->head->thread_tcb->threadId));
+    swapcontext(&(threadQ->head->thread_tcb->context),&schedulerContext);
+    printf("resuming thread %d\n",(threadQ->head->thread_tcb->threadId));
+  }
+
 }
 
 
