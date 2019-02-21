@@ -14,13 +14,15 @@
 ucontext_t schedulerContext;
 ucontext_t parentContext;
 int threadCounter=0;
+int mutexCounter=0;
 threadQueue* threadQ=NULL;
+
 //ucontext_t processFinishedJobContext;
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
-  *thread=++threadCounter; //???????????????????????????????????????????????????????????????????????????????????
+  *thread=++threadCounter;
   //First time we create a threadQ
   //Initialize Scheduler Context
   if(threadQ==NULL)
@@ -183,13 +185,13 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
     //TODO: Return value_ptr if not nULL
     return 0;
   }
+
   //Thread is in Queue
   else{
     //If thread is Not done, yield CPU
     if(thread_to_join->thread_status!=DONE){
       printf("thread to join (%d) is still executing, yielding CPU\n",thread);
       thread_to_join->join_boolean = 1;
-      // SWAP TO SCHEDULER schedule()???? swapcontext()????
       //schedule();
       SIGALRM_Handler();
       printf("Done yielding the CPU\n");
@@ -215,8 +217,14 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 /* initialize the mutex lock */
 int my_pthread_mutex_init(my_pthread_mutex_t *mutex,
                           const pthread_mutexattr_t *mutexattr) {
-	// Initialize data structures for this mutex
-
+  // Initialize data structures for this mutex
+  mutexNode* newMutexNode=(mutexNode*) malloc(sizeof(mutexNode));
+  mutex=(my_pthread_mutex_t*)malloc(sizeof(my_pthread_mutex_t));
+  newMutexNode->mutex=mutex;
+  newMutexNode->mutex->isLocked=0;
+  newMutexNode->mutex->mutexId=++mutexCounter;
+  newMutexNode->next=mutexList;
+  mutexList->head=newMutexNode;
 	// YOUR CODE HERE
 	return 0;
 };
