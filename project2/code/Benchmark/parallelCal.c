@@ -27,7 +27,7 @@ int  sum = 0;
 
 /* A CPU-bound task to do parallel array addition */
 void parallel_calculate(void* arg) {
-	printf("Starting Parallel Calculating %d\n ",*(int*)arg);//delete
+	printf("Starting Parallel Calculating %d\n ", (1+*(int*)arg));//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
 
@@ -39,12 +39,15 @@ void parallel_calculate(void* arg) {
 		}
 	}
 	for (j = n; j < R_SIZE; j += thread_num) {
-		// pthread_mutex_lock(&mutex);
+		 pthread_mutex_lock(&mutex);
+		// printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
 		sum += pSum[j];
-		// pthread_mutex_unlock(&mutex);
+		// printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
+		 pthread_mutex_unlock(&mutex);
 	}
-	printf("finished function parallel calculate %d\n",*(int*)arg);
-	pthread_exit(NULL);
+	printf("finished function parallel calculate %d\n",(*(int*)arg+1));
+	// pthread_exit(NULL);
+
 
 }
 

@@ -67,7 +67,7 @@ typedef struct my_pthread_mutex_t {
 
 //mutex list definition
 typedef struct _mutexNode {
-  struct _mutexNode *next;
+  struct _mutexNode* next;
   my_pthread_mutex_t *mutex;
 } mutexNode;
 
@@ -113,10 +113,10 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex);
 void SIGALRM_Handler();
 
 /*When a thread exits, mark it as done*/
-void processFinishedJob(int threadID);
+void processFinishedJob(int);
 
 /*Search for a thread by its threadID*/
-tcb* findThread(int threadID);
+tcb* findThread(int);
 
 static void schedule();
 
@@ -124,8 +124,10 @@ queueNode* getTopOfQueue();
 
 queueNode *getNextToRun();
 
-void removeFromQueue(queueNode *finishedThread);
+void removeFromQueue(queueNode*);
 void start_timer(int);
+mutexNode *findMutex(int);
+void SIGALRM_MIRROR();
 
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
