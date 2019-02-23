@@ -259,10 +259,9 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 	// If mutex is acquired successfuly, enter critical section
 	// If acquiring mutex fails, push current thread into block list
 	// and context switch to scheduler
-  //printf("Ignoring Mutex Lock\n");
-  return 0;
-  //printf("locking mutex: %d\n",mutex->mutexId);
+  printf("locking mutex: %d\n",mutex->mutexId);
   mutexNode *mutexToLock = findMutex(mutex->mutexId);
+
   if(mutexToLock == NULL){
     printf("Mutex %d has not been initialized\n",mutex->mutexId);
     return -1;
@@ -273,10 +272,11 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 
 
     while(__sync_lock_test_and_set(&(mutexToLock->mutex->isLocked),1)==1){// we want to yield to other threads, until critical section is unlocked
-        printf("mutex is locked, yielding cpu\n");
+        printf("mutex %d is locked, yielding cpu\n",mutexToLock->mutex->mutexId);
         my_pthread_yield();
     }
     mutexToLock->mutex->isLocked = 1;
+    printf("Successfully locked mutex %d\n",mutexToLock->mutex->mutexId);
     //printf("We locked the mutex, see: %d",mutexToLock->mutex->isLocked);
     return 0;
   }
@@ -289,8 +289,6 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
 	// Release mutex and make it available again.
 	// Put threads in block list to run queue
 	// so that they could compete for mutex later.
-  //printf("Ignoring Mutex Unlock\n");
-  return 0;
   mutexNode *mutexToUnlock = findMutex(mutex->mutexId);
   if(mutexToUnlock==NULL)
   {
@@ -401,13 +399,15 @@ static void schedule() {
     printf("thread (%d) is done, removing\n", finishedThread->thread_tcb->threadId);
 
     // threadQ->head=finishedThread->next; // removing
+    int join_boolean=finishedThread->thread_tcb->join_boolean;
+    int finishedThreadId=finishedThread->thread_tcb->threadId;
     removeFromQueue(finishedThread);
     // queueNode* threadToRun=threadQ->head; // get next to run
     queueNode* threadToRun=getNextToRun(); // get next to run
 
-    if(finishedThread->thread_tcb->join_boolean==1){
+    if(join_boolean==1){
       //swap to main
-      printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
+      printf("THREAD (%d) to join is DONE, returning to main\n", finishedThreadId);
       // free(finishedThread); ADD THIS
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
@@ -593,7 +593,7 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   printf("Found thread! about to interrupt to remove this thread!\n");
   finishedThread->thread_status=DONE;
-  free(finishedThread->context.uc_stack.ss_sp);
+
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   SIGALRM_Handler();
@@ -652,10 +652,10 @@ void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
 }
 
 queueNode* getTopOfQueue(){ // returns top of queue according to current scheduling paradigm
-  pthread_mutex_lock(&qLock);
+  //pthread_mutex_lock(&qLock);
   if(threadQ==NULL){
     printf("Queue is NULL!!!\n");
-    pthread_mutex_unlock(&qLock);
+    //pthread_mutex_unlock(&qLock);
 
     return NULL;
   }
@@ -663,12 +663,12 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
 
   if(head==NULL){
      printf("Head is NULL\n");
-     pthread_mutex_unlock(&qLock);
+     //pthread_mutex_unlock(&qLock);
 
     return NULL;
   }
   else{
-    pthread_mutex_unlock(&qLock);
+    //pthread_mutex_unlock(&qLock);
     return head;
   }
   // ifndef MLFQ
@@ -678,23 +678,25 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
 void removeFromQueue(queueNode *finishedThread){
   //Gonna have to change this logic
   // CURRENTLY this function removes whatever is the HEAD of the Q
-  pthread_mutex_lock(&qLock);
+  //pthread_mutex_lock(&qLock);
   if(finishedThread==NULL){
     printf("Cannot remove NULL thread\n");
-    pthread_mutex_unlock(&qLock);
+    //pthread_mutex_unlock(&qLock);
 
     return;
   }
   if(threadQ==NULL || threadQ->head==NULL)
   {
     printf("Queue was empty, cannot remove\n");
-    pthread_mutex_unlock(&qLock);
+    //pthread_mutex_unlock(&qLock);
     return;
   }
   if(threadQ->head->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+    queueNode* tmp=threadQ->head;
     threadQ->head=threadQ->head->next;
+    freeQueueNode(tmp);
     printf("Removed head\n");
-    pthread_mutex_unlock(&qLock);
+    //pthread_mutex_unlock(&qLock);
     return;
   }
   queueNode* prev=threadQ->head;
@@ -703,14 +705,15 @@ void removeFromQueue(queueNode *finishedThread){
     if(current->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
       printf("removing thread: %d\n",current->thread_tcb->threadId);
       prev->next=current->next;
-      pthread_mutex_unlock(&qLock);
+      freeQueueNode(current);
+      //pthread_mutex_unlock(&qLock);
       return;
     }
     prev=prev->next;
     current=current->next;
   }
   printf("Could not find thread to remove\n");
-  pthread_mutex_unlock(&qLock);
+  //pthread_mutex_unlock(&qLock);
   return;
   //TODO: implement other types of removing from Q's and multi level Q's
 }
@@ -722,12 +725,30 @@ queueNode *getNextToRun(){
   return nextThread;
 }
 mutexNode *findMutex(int mutexId){// searches and returns mutex that has a matching mutexId
+  ignoreSignal=1;
   mutexNode *mutexPtr = mutexList;
   while(mutexPtr!=NULL){
     if(mutexPtr->mutex->mutexId==mutexId){
+      ignoreSignal=0;
       return mutexPtr;
     }
     mutexPtr = mutexPtr->next;
   }
+  ignoreSignal=0;
   return NULL;
+}
+void freeQueueNode(queueNode* node){
+  tcb* tcbToFree=node->thread_tcb;
+  freeTcb(tcbToFree);
+  free(node);
+  printf("Freed queue node too\n");
+  return;
+}
+void freeTcb(tcb* tcb){
+  printf("Freed allocated stack for thread %d\n",tcb->threadId);
+  free(tcb->context.uc_stack.ss_sp);
+  free(tcb->return_context.uc_stack.ss_sp);
+  return;
+
+
 }
