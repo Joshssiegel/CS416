@@ -22,6 +22,14 @@ my_pthread_mutex_t qLock;
 int ignoreSignal=0;
 //ucontext_t processFinishedJobContext;
 
+void threadWrapper(void * arg, void *(*function)(void*), int threadId){
+  // Function call: makecontext(&newThreadContext, (void*)threadWrapper, 2, arg, (void*)function);
+  void * threadReturnValue = (*function)(arg);//
+  printf("DONE THREAD ==> (%d), in wrapper with return value ==> (%d)\n", threadReturnValue, (threadId));
+  returnValues[threadId] = threadReturnValue; // saving the threads return value in an array
+  // void * returnValue = function((int)arg);//
+}
+
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
@@ -108,8 +116,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   }
   printf("Creating new Thread\n");
   //Make the context
-  makecontext(&newThreadContext, (void*)function, 1, arg);
-  // makecontext(&newThreadContext, function, 1, arg);
+  // makecontext(&newThreadContext, (void*)function, 1, arg);
+  makecontext(&newThreadContext, (void*)threadWrapper, 3, arg, function, (int)new_tcb->threadId);
   new_tcb->context=newThreadContext;
 
   queueNode* qNode =(queueNode*) malloc(sizeof(queueNode*));
@@ -159,6 +167,11 @@ int my_pthread_yield() {
 void my_pthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
   //getTopOfQueue
+
+  // TODO: save the return value
+
+
+
   ignoreSignal=1;
   queueNode* finishedQNode=threadQ->head;//getTopOfQueue();
   tcb* finishedThread=finishedQNode->thread_tcb;
@@ -180,23 +193,23 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
 	// YOUR CODE HERE
   //TODO: returning Value_ptr
+  //
 
   //First, check if thread is in the queueNode
   tcb* thread_to_join=findThread(thread);
+
   //If thread is in queue, check its status
     //If thread status is Done, free it, and swap context with Parent
     //If thread status is READY or RUNNING, yield CPU
-  //If thread is not in queueNode, set context to parent
+  //If thread is not in Q, set context to parent
   if(thread_to_join==NULL){
     printf("Thread to join (%d) on is no longer in queue\n",thread);
-    /*
-    int setStatus=setcontext(&parentContext);
-    if(setStatus){
-      printf("Error setting context, exiting\n");
-      exit(1);
+    if(value_ptr!=NULL){
+      *value_ptr = returnValues[(int)thread];
+      printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", thread, returnValues[thread]);
     }
-    */
-    //TODO: Return value_ptr if not nULL
+
+    //TODO: Return value_ptr if not NULL
     ignoreSignal=0;
     return 0;
   }
@@ -210,7 +223,12 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
       //schedule();
       ignoreSignal=0;
       SIGALRM_Handler();
-      printf("Done yielding the CPU\n");
+      // Thread being JOINED on is now DONE
+      if(value_ptr!=NULL){
+        *value_ptr = returnValues[(int)thread_to_join->threadId];
+        printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", (int)thread_to_join->threadId, returnValues[(int)thread_to_join->threadId]);
+      }
+      printf("Done yielding the CPU after JOIN on thread (%d)\n", thread_to_join->threadId);
       return 0;
       //my_pthread_yield();
       //WHAT DO WE DO HERE???
@@ -218,6 +236,10 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
     //If thread is done, free and return? or setContext to Main?
     else{
       printf("thread to join (%d) is done\n",thread);
+      if(value_ptr!=NULL){
+        *value_ptr = returnValues[(int)thread_to_join->threadId];
+        printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", (int)thread_to_join->threadId, returnValues[(int)thread_to_join->threadId]);
+      }
       free(thread_to_join->context.uc_stack.ss_sp);
       free(thread_to_join->return_context.uc_stack.ss_sp);
       free(thread_to_join);
