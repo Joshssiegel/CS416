@@ -17,12 +17,15 @@ int threadCounter=0;
 int mutexCounter=0;
 threadQueue* threadQ=NULL;
 mutexNode* mutexList=NULL;
+my_pthread_mutex_t qLock;
+int ignoreSignal=0;
 //ucontext_t processFinishedJobContext;
 
 /* create a new thread */
 int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
                       void *(*function)(void*), void * arg) {
   //BLOCK TIMER FROM INTERRPTING
+  ignoreSignal=1;
  /*sigset_t signal_set;
  sigemptyset(&signal_set);
  sigaddset(&signal_set, SIGALRM);
@@ -113,16 +116,21 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   qNode->next=NULL;
 
 
-  signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
-  start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
+
 
   if(threadQ==NULL)
   {
+    signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
+    start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
     threadQ=(threadQueue*) malloc(sizeof(threadQueue));
     //initialize the head and tail
     threadQ->head=qNode;
     threadQ->tail=qNode;
     printf("Made the queue\n");
+    pthread_mutex_init(&qLock,NULL);
+    printf("getting main context\n");
+    getcontext(&parentContext);
+
   }
   else{
     threadQ->tail->next=qNode;
@@ -130,6 +138,8 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   }
   //ALLOW TIMER TO CONTINUE
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+
+  ignoreSignal=0;
 	return 0;
 };
 
@@ -148,11 +158,13 @@ int my_pthread_yield() {
 void my_pthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
   //getTopOfQueue
+  ignoreSignal=1;
   queueNode* finishedQNode=threadQ->head;//getTopOfQueue();
   tcb* finishedThread=finishedQNode->thread_tcb;
   //Set to done
   printf("\nA job just decided to exit with ID %d \n",finishedThread->threadId);
   finishedThread->thread_status=DONE;
+  ignoreSignal=0;
   SIGALRM_Handler();
 
 }
@@ -160,7 +172,7 @@ void my_pthread_exit(void *value_ptr) {
 
 /* wait for thread termination */
 int my_pthread_join(my_pthread_t thread, void **value_ptr) {
-
+  ignoreSignal=1;
   printf("\n\n\n\n\n******************JOIN (%d)**************\n", thread);
 	// Waiting for a specific thread to terminate
 	// Once this thread finishes,
@@ -184,6 +196,7 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
     }
     */
     //TODO: Return value_ptr if not nULL
+    ignoreSignal=0;
     return 0;
   }
 
@@ -194,6 +207,7 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
       printf("thread to join (%d) is still executing, yielding CPU\n",thread);
       thread_to_join->join_boolean = 1;
       //schedule();
+      ignoreSignal=0;
       SIGALRM_Handler();
       printf("Done yielding the CPU\n");
       return 0;
@@ -208,9 +222,11 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
       free(thread_to_join);
       //TODO: Remove thread from Queue
       //TODO: Return value_ptr if not nULL
+      ignoreSignal=0;
       return 0;
   }
   printf("Shouldn't reach here (end of join)\n");
+  ignoreSignal=0;
 	return 0;
 }
 }
@@ -242,19 +258,26 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 	// If mutex is acquired successfuly, enter critical section
 	// If acquiring mutex fails, push current thread into block list
 	// and context switch to scheduler
-  printf("locking mutex: %d\n",mutex->mutexId);
+  //printf("Ignoring Mutex Lock\n");
+  return 0;
+  //printf("locking mutex: %d\n",mutex->mutexId);
   mutexNode *mutexToLock = findMutex(mutex->mutexId);
   if(mutexToLock == NULL){
-    printf("Mutex has not been initialized\n");
+    printf("Mutex %d has not been initialized\n",mutex->mutexId);
     return -1;
   }
   else{
     //check that it hasn't already been locked
-    while(mutexToLock->mutex->isLocked==1){// we want to yield to other threads, until critical section is unlocked
+    //while(mutexToLock->mutex->isLocked==1){// we want to yield to other threads, until critical section is unlocked
+
+
+    while(__sync_lock_test_and_set(&(mutexToLock->mutex->isLocked),1)==1){// we want to yield to other threads, until critical section is unlocked
         printf("mutex is locked, yielding cpu\n");
         my_pthread_yield();
     }
     mutexToLock->mutex->isLocked = 1;
+    //printf("We locked the mutex, see: %d",mutexToLock->mutex->isLocked);
+    return 0;
   }
 	// YOUR CODE HERE
 	return 0;
@@ -265,12 +288,19 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
 	// Release mutex and make it available again.
 	// Put threads in block list to run queue
 	// so that they could compete for mutex later.
+  //printf("Ignoring Mutex Unlock\n");
+  return 0;
   mutexNode *mutexToUnlock = findMutex(mutex->mutexId);
-  if(mutexToUnlock==NULL || mutexToUnlock->mutex->isLocked==0){// it is NULL or already unlocked
+  if(mutexToUnlock==NULL)
+  {
+    printf("No mutex to unlock\n");
+    return -1;
+  }
+  if(__sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0)==0){
     printf("Mutex is already unlocked!\n");
     return -1;
   }
-  mutexToUnlock->mutex->isLocked = 0;
+  //else we are already unlocked it
   return 0;
 }
 
@@ -338,6 +368,7 @@ static void schedule() {
     printf("we already switched to main, this should never print\n");
     //ALLOW TIMER TO CONTINUE
     //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    ignoreSignal=0;
     int setStatus=setcontext(&parentContext);
     if(setStatus!=0){
       printf("\nSwap error but shouldnt be here anyway, error is: %d \nI'm exiting now\n",setStatus);
@@ -354,6 +385,7 @@ static void schedule() {
     //TODO: Make sure main was saved in sigalarm
     //ALLOW TIMER TO CONTINUE
     //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    ignoreSignal=0;
     int setStatus=setcontext(&(finishedThread->thread_tcb->context));
     if(setStatus!=0){
       printf("\nOOPSIES, Swap no work in starting top of queue, error is: %d \nI'm exiting now\n",setStatus);
@@ -378,7 +410,9 @@ static void schedule() {
       // free(finishedThread); ADD THIS
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      ignoreSignal=0;
       int setStatus=setcontext(&parentContext);
+      printf("Just set context to join (main) shouldn't be here, set Status is: %d\n",setStatus );
       if(setStatus!=0){
         printf("\nOOPSIES, Swap no work before returning to join, error is: %d \nI'm exiting now\n",setStatus);
         exit(0);
@@ -390,12 +424,14 @@ static void schedule() {
       printf("No more threads to run after removing last thread switching back to main\n");
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      ignoreSignal=0;
       int setStatus=setcontext(&parentContext); // done executing everything in Q, switching back to main
+      printf("if this prints set failed to go back to main\n");
+
       if(setStatus!=0){
         printf("\nOOPSIES, Swap no work when no threads to run, error is: %d \nI'm exiting now\n",setStatus);
         exit(0);
       }
-      printf("if this prints we got a big problem\n");
       //continue;
     }
     else{
@@ -405,6 +441,7 @@ static void schedule() {
       //Set context starts from the top
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      ignoreSignal=0;
       int setStatus=setcontext(&(threadToRun->thread_tcb->context));
       //int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
       if(setStatus!=0){
@@ -432,6 +469,7 @@ static void schedule() {
   //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
   //ALLOW TIMER TO CONTINUE
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  ignoreSignal=0;
   int setStatus=setcontext(&(threadToRun->thread_tcb->context));
   if(setStatus!=0){
     printf("OOPSIES, Swap no work between threads, error is: %d \nI'm exiting now\n",setStatus);
@@ -443,9 +481,9 @@ static void schedule() {
 	// Invoke different actual scheduling algorithms
 	// according to policy (STCF or MLFQ)
   printf("end of scheduler, should not be here,\n");
-  printf("Setting context back to main\n");
   //ALLOW TIMER TO CONTINUE
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+  ignoreSignal=0;
   setcontext(&parentContext);
 	// if (sched == STCF)
 	//		sched_stcf();
@@ -464,6 +502,12 @@ static void schedule() {
 }
 
 void SIGALRM_Handler(){
+  start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
+  if(ignoreSignal==1){
+    printf("\n\n******************Interrupt Signal was ignored*****************************\n");
+    return;
+  }
+  ignoreSignal=1;
   //TODO: Check if parentContext is the one who was interrupted. Could be thread or Main
   //swapcontext(&parentContext,&schedulerContext);
 
@@ -472,15 +516,14 @@ void SIGALRM_Handler(){
   //get the thread that was just running.
   printf("Interrupted!\n");
   queueNode* finishedThread=getTopOfQueue();
-  if(firstSchedule==1){
-    printf("getting main context\n");
-    getcontext(&parentContext);
-  }
+
     //No jobs in queue
   if(finishedThread==NULL)
   {
     printf("No jobs in queue\n");
     printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+
+    ignoreSignal=0;
     return;
     //setcontext(&parentContext);
   }
@@ -492,6 +535,7 @@ void SIGALRM_Handler(){
       printf("Error swapping main and scheduler: %d\n",swapStatus);
     }
      printf("\nResuming Main\n");
+
      return;
   }
   //top of queue was Running or Done
@@ -533,19 +577,20 @@ void processFinishedJob(int threadID){
   sigemptyset(&signal_set);
   sigaddset(&signal_set, SIGALRM);
   sigprocmask(SIG_BLOCK, &signal_set, NULL);*/
+  ignoreSignal=1;
   printf("\nA job just finished!!!! with ID %d (This is so good :) \n",threadID);
   tcb* finishedThread=findThread(threadID);
   printf("Found thread! about to interrupt to remove this thread!\n");
   finishedThread->thread_status=DONE;
   free(finishedThread->context.uc_stack.ss_sp);
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
-
+  ignoreSignal=0;
   SIGALRM_Handler();
 }
 
 /*Search for a thread by its threadID*/
 tcb* findThread(int threadID){
-
+  //pthread_mutex_lock(&qLock);
   if(threadQ == NULL)
   {
     printf("Queue is Null\n");
@@ -565,6 +610,7 @@ tcb* findThread(int threadID){
   while(head!=NULL && (int)(head->thread_tcb->threadId)!=(int)(threadID) ){
     printf("ID: %d\n",head->thread_tcb->threadId);
     if((int)(head->thread_tcb->threadId)==(int)(threadID)){
+      printf("did we actually find the thread: %d??\n",head->thread_tcb->threadId);
       return head->thread_tcb;
     }
     head=head->next;
@@ -579,6 +625,8 @@ tcb* findThread(int threadID){
   //Thread found
   printf("found thread? %d\n",head->thread_tcb->threadId);
   return head->thread_tcb;
+  //pthread_mutex_unlock(&qLock);
+
 }
 
 void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
@@ -593,17 +641,23 @@ void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
 }
 
 queueNode* getTopOfQueue(){ // returns top of queue according to current scheduling paradigm
+  pthread_mutex_lock(&qLock);
   if(threadQ==NULL){
     printf("Queue is NULL!!!\n");
+    pthread_mutex_unlock(&qLock);
+
     return NULL;
   }
   queueNode* head=threadQ->head;
 
   if(head==NULL){
      printf("Head is NULL\n");
+     pthread_mutex_unlock(&qLock);
+
     return NULL;
   }
   else{
+    pthread_mutex_unlock(&qLock);
     return head;
   }
   // ifndef MLFQ
@@ -613,7 +667,39 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
 void removeFromQueue(queueNode *finishedThread){
   //Gonna have to change this logic
   // CURRENTLY this function removes whatever is the HEAD of the Q
-  threadQ->head=finishedThread->next;
+  pthread_mutex_lock(&qLock);
+  if(finishedThread==NULL){
+    printf("Cannot remove NULL thread\n");
+    pthread_mutex_unlock(&qLock);
+
+    return;
+  }
+  if(threadQ==NULL || threadQ->head==NULL)
+  {
+    printf("Queue was empty, cannot remove\n");
+    pthread_mutex_unlock(&qLock);
+    return;
+  }
+  if(threadQ->head->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+    threadQ->head=threadQ->head->next;
+    printf("Removed head\n");
+    pthread_mutex_unlock(&qLock);
+    return;
+  }
+  queueNode* prev=threadQ->head;
+  queueNode* current=threadQ->head->next;
+  while(current!=NULL){
+    if(current->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+      printf("removing thread: %d\n",current->thread_tcb->threadId);
+      prev->next=current->next;
+      pthread_mutex_unlock(&qLock);
+      return;
+    }
+    prev=prev->next;
+    current=current->next;
+  }
+  printf("Could not find thread to remove\n");
+  pthread_mutex_unlock(&qLock);
   return;
   //TODO: implement other types of removing from Q's and multi level Q's
 }
