@@ -40,9 +40,9 @@ void parallel_calculate(void* arg) {
 	}
 	for (j = n; j < R_SIZE; j += thread_num) {
 		 pthread_mutex_lock(&mutex);
-		 printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
+		 //printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
 		sum += pSum[j];
-		 printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
+		 //printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
 		 pthread_mutex_unlock(&mutex);
 	}
 	printf("finished function parallel calculate %d\n",(*(int*)arg+1));

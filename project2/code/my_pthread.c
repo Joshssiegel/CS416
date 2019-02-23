@@ -5,7 +5,7 @@
 // List all group member's name:
 // username of iLab:
 // iLab Server:
-//
+
 #include "my_pthread_t.h"
 
 // INITAILIZE ALL YOUR VARIABLES HERE
@@ -59,7 +59,9 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
 	// Create Thread Control Block
   tcb* new_tcb=(tcb*) malloc(sizeof(tcb));
   new_tcb->priority=0;
-  new_tcb->time_quantum_counter=0;
+  //new_tcb->time_quantum_counter=0;
+  new_tcb->time_ran=0;
+
   new_tcb->threadId = *thread;
   new_tcb->thread_status=READY;
   new_tcb->join_boolean=0; //FALSE
@@ -122,10 +124,18 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   {
     signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
     start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
-    threadQ=(threadQueue*) malloc(sizeof(threadQueue));
-    //initialize the head and tail
-    threadQ->head=qNode;
-    threadQ->tail=qNode;
+    if(SCHED == MLFQ_SCHEDULER){
+      ;
+    }
+    else if(SCHED == STCF_SCHEDULER){
+      ;
+    }
+    else if(SCHED == FIFO_SCHEDULER){
+      threadQ=(threadQueue*) malloc(sizeof(threadQueue));
+      //initialize the head and tail
+      threadQ->head=qNode;
+      threadQ->tail=qNode;
+    }
     printf("Made the queue\n");
     pthread_mutex_init(&qLock,NULL);
     printf("getting main context\n");
@@ -133,8 +143,16 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
 
   }
   else{
-    threadQ->tail->next=qNode;
-    threadQ->tail=qNode;
+    if(SCHED == MLFQ_SCHEDULER){
+      ;
+    }
+    else if(SCHED == STCF_SCHEDULER){
+      ;
+    }
+    else if(SCHED == FIFO_SCHEDULER){
+      threadQ->tail->next=qNode;
+      threadQ->tail=qNode;
+    }
   }
   //ALLOW TIMER TO CONTINUE
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
@@ -159,7 +177,7 @@ void my_pthread_exit(void *value_ptr) {
 	// Deallocated any dynamic memory created when starting this thread
   //getTopOfQueue
   ignoreSignal=1;
-  queueNode* finishedQNode=threadQ->head;//getTopOfQueue();
+  queueNode* finishedQNode = getTopOfQueue();
   tcb* finishedThread=finishedQNode->thread_tcb;
   //Set to done
   printf("\nA job just decided to exit with ID %d \n",finishedThread->threadId);
@@ -258,7 +276,7 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 	// If mutex is acquired successfuly, enter critical section
 	// If acquiring mutex fails, push current thread into block list
 	// and context switch to scheduler
-  printf("locking mutex: %d\n",mutex->mutexId);
+  //printf("locking mutex: %d\n",mutex->mutexId);
   mutexNode *mutexToLock = findMutex(mutex->mutexId);
 
   if(mutexToLock == NULL){
@@ -271,11 +289,11 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
 
 
     while(__sync_lock_test_and_set(&(mutexToLock->mutex->isLocked),1)==1){// we want to yield to other threads, until critical section is unlocked
-        printf("mutex %d is locked, yielding cpu\n",mutexToLock->mutex->mutexId);
+        //printf("mutex %d is locked, yielding cpu\n",mutexToLock->mutex->mutexId);
         my_pthread_yield();
     }
     mutexToLock->mutex->isLocked = 1;
-    printf("Successfully locked mutex %d\n",mutexToLock->mutex->mutexId);
+    //printf("Successfully locked mutex %d\n",mutexToLock->mutex->mutexId);
     //printf("We locked the mutex, see: %d",mutexToLock->mutex->isLocked);
     return 0;
   }
@@ -331,14 +349,78 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
 
 struct timespec timeCheck;
 int firstSchedule=1;
-/* scheduler */
-static void schedule() {
-  //TODO: context switch to schedule function
-  // Every time when timer interrup happens, your thread library
-	// should be contexted switched from thread context to this
-	// schedule function
-  //printf("scheduling\n");
-  //Prevent schedule from being interrupted
+
+
+void SIGALRM_Handler(){
+  start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
+  if(ignoreSignal==1){
+    printf("\n\n******************Interrupt Signal was ignored*****************************\n");
+    return;
+  }
+  ignoreSignal=1;
+  //TODO: Check if parentContext is the one who was interrupted. Could be thread or Main
+  //swapcontext(&parentContext,&schedulerContext);
+
+  //schedule();
+  //printf("Ok resumin now\n");
+  //get the thread that was just running.
+  printf("Interrupted!\n");
+  queueNode* finishedThread=getTopOfQueue();
+
+    //No jobs in queue
+  if(finishedThread==NULL)
+  {
+    printf("No jobs in queue\n");
+    printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
+
+    ignoreSignal=0;
+    return;
+    //setcontext(&parentContext);
+  }
+  //Check if top of queue is ready
+  else if(finishedThread->thread_tcb->thread_status==READY){
+    printf("\nInterrupted from Main we think, switching to schedule context\n");
+    int swapStatus=swapcontext(&parentContext,&schedulerContext);
+    if(swapStatus!=0){
+      printf("Error swapping main and scheduler: %d\n",swapStatus);
+    }
+     printf("\nResuming Main\n");
+
+     return;
+  }
+  //top of queue was Running or Done
+  else{
+    printf("\ninterrupted from thread %d\n",(finishedThread->thread_tcb->threadId));
+    int swapStatus=swapcontext(&(finishedThread->thread_tcb->context),&schedulerContext);
+    if(swapStatus!=0){
+      printf("Error swapping top of queue and scheduler: %d\n",swapStatus);
+    }
+    printf("resuming thread %d\n",(finishedThread->thread_tcb->threadId));
+    return;
+  }
+
+}
+
+
+/* Preemptive SJF (STCF) scheduling algorithm */
+static void sched_stcf() {
+	// Your own implementation of STCF
+	// (feel free to modify arguments and return types)
+
+	// YOUR CODE HERE
+}
+
+/* Preemptive MLFQ scheduling algorithm */
+static void sched_mlfq() {
+	// Your own implementation of MLFQ
+	// (feel free to modify arguments and return types)
+
+	// YOUR CODE HERE
+}
+
+/* FIFO scheduling algorithm */
+static void sched_fifo() {
+	// Your own implementation of FIFO
   /*sigset_t signal_set;
   sigemptyset(&signal_set);
   sigaddset(&signal_set, SIGALRM);
@@ -347,8 +429,10 @@ static void schedule() {
 
   struct timespec prev_time=timeCheck;
   clock_gettime(CLOCK_REALTIME, &timeCheck);
+  unsigned long timeRan=0;
   if(!firstSchedule){
-    printf("scheduling time: %lu milli-seconds\n", (timeCheck.tv_sec - prev_time.tv_sec) * 1000 + (timeCheck.tv_nsec - prev_time.tv_nsec) / 1000000);
+    timeRan=(timeCheck.tv_sec - prev_time.tv_sec) * 1000 + (timeCheck.tv_nsec - prev_time.tv_nsec) / 1000000;
+    printf("scheduling time: %lu milli-seconds\n", timeRan);
   }
   else{
     printf("first schedule\n");
@@ -402,7 +486,7 @@ static void schedule() {
     int finishedThreadId=finishedThread->thread_tcb->threadId;
     removeFromQueue(finishedThread);
     // queueNode* threadToRun=threadQ->head; // get next to run
-    queueNode* threadToRun=getNextToRun(); // get next to run
+    queueNode* threadToRun=getTopOfQueue(); // get next to run
 
     if(join_boolean==1){
       //swap to main
@@ -418,7 +502,6 @@ static void schedule() {
         exit(0);
       }
     }
-    // free(finishedThread); ADD THIS
     if(threadToRun==NULL)
     {
       printf("No more threads to run after removing last thread switching back to main\n");
@@ -453,9 +536,12 @@ static void schedule() {
 
   }
   else{
+  //Swapping two running threads
+
   //Change the status of the finished thread to ready
   finishedThread->thread_tcb->thread_status=READY;
-  printf("about to swap out running Thread: %d\n",(finishedThread->thread_tcb->threadId));
+  finishedThread->thread_tcb->time_ran+=timeRan;
+  printf("about to swap out running Thread: %d which has ran for %ul milliseconds\n",(finishedThread->thread_tcb->threadId),finishedThread->thread_tcb->time_ran);
   //Move it to the back
   threadQ->tail->next=finishedThread;
   threadQ->tail=finishedThread;
@@ -463,7 +549,7 @@ static void schedule() {
   finishedThread->next=NULL;
   //Setup next thread to run
   // queueNode* threadToRun=threadQ->head;
-  queueNode* threadToRun=getNextToRun();
+  queueNode* threadToRun=getTopOfQueue();
   threadToRun->thread_tcb->thread_status=RUNNING;
   //Swap context saves lace in old context for later
   //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
@@ -476,98 +562,50 @@ static void schedule() {
     exit(0);
   }
   printf("\nset staus should be 0 after swapping two threads:  %d\n",setStatus);
-}
+  }
 
-	// Invoke different actual scheduling algorithms
-	// according to policy (STCF or MLFQ)
+  // Invoke different actual scheduling algorithms
+  // according to policy (STCF or MLFQ)
   printf("end of scheduler, should not be here,\n");
   //ALLOW TIMER TO CONTINUE
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   setcontext(&parentContext);
-	// if (sched == STCF)
-	//		sched_stcf();
-	// else if (sched == MLFQ)
-	// 		sched_mlfq();
+  // if (sched == STCF)
+  //		sched_stcf();
+  // else if (sched == MLFQ)
+  // 		sched_mlfq();
 
-	// YOUR CODE HERE
-
-// schedule policy
-#ifndef MLFQ
-	// Choose STCF
-#else
-	// Choose MLFQ
-#endif
-
+  // YOUR CODE HERE
 }
+/* scheduler */
+static void schedule() {
+  //TODO: context switch to schedule function
+  // Every time when timer interrup happens, your thread library
+	// should be contexted switched from thread context to this
+	// schedule function
+  //printf("scheduling\n");
+  //Prevent schedule from being interrupted
 
-void SIGALRM_Handler(){
-  start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
-  if(ignoreSignal==1){
-    printf("\n\n******************Interrupt Signal was ignored*****************************\n");
-    return;
+
+  // schedule policy
+  if(SCHED == MLFQ_SCHEDULER){
+  	// Choose MLFQ
+    printf("MLFQ\n");
+    sched_mlfq();
   }
-  ignoreSignal=1;
-  //TODO: Check if parentContext is the one who was interrupted. Could be thread or Main
-  //swapcontext(&parentContext,&schedulerContext);
-
-  //schedule();
-  //printf("Ok resumin now\n");
-  //get the thread that was just running.
-  printf("Interrupted!\n");
-  queueNode* finishedThread=getTopOfQueue();
-
-    //No jobs in queue
-  if(finishedThread==NULL)
+  else if(SCHED == FIFO_SCHEDULER)
   {
-    printf("No jobs in queue\n");
-    printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
-
-    ignoreSignal=0;
-    return;
-    //setcontext(&parentContext);
+  	// Choose FIFO
+    printf("FIFO\n");
+    sched_fifo();
   }
-  //Check if top of queue is ready
-  else if(finishedThread->thread_tcb->thread_status==READY){
-    printf("\nInterrupted from Main we think, switching to schedule context\n");
-    int swapStatus=swapcontext(&parentContext,&schedulerContext);
-    if(swapStatus!=0){
-      printf("Error swapping main and scheduler: %d\n",swapStatus);
-    }
-     printf("\nResuming Main\n");
-
-     return;
-  }
-  //top of queue was Running or Done
   else{
-    printf("\ninterrupted from thread %d\n",(threadQ->head->thread_tcb->threadId));
-    int swapStatus=swapcontext(&(threadQ->head->thread_tcb->context),&schedulerContext);
-    if(swapStatus!=0){
-      printf("Error swapping top of queue and scheduler: %d\n",swapStatus);
-    }
-    printf("resuming thread %d\n",(threadQ->head->thread_tcb->threadId));
-    return;
+    //Choose STCF
+    printf("STCF\n");
+    sched_stcf();
   }
-
 }
-
-
-/* Preemptive SJF (STCF) scheduling algorithm */
-static void sched_stcf() {
-	// Your own implementation of STCF
-	// (feel free to modify arguments and return types)
-
-	// YOUR CODE HERE
-}
-
-/* Preemptive MLFQ scheduling algorithm */
-static void sched_mlfq() {
-	// Your own implementation of MLFQ
-	// (feel free to modify arguments and return types)
-
-	// YOUR CODE HERE
-}
-
 // Feel free to add any other functions you need
 
 // YOUR CODE HERE
@@ -590,42 +628,51 @@ void processFinishedJob(int threadID){
 
 /*Search for a thread by its threadID*/
 tcb* findThread(int threadID){
-  //pthread_mutex_lock(&qLock);
-  if(threadQ == NULL)
-  {
-    printf("Queue is Null\n");
-    return NULL;
+
+  if(SCHED == MLFQ_SCHEDULER){
+    ;
   }
-  //Linear search through Queue for threadID
-  queueNode* head=threadQ->head;
-  printf("about to search list for thread %d\n",threadID);
-  if(head==NULL){
-    printf("head was NULL while searching for thread # (%d)\n", threadID);
-    return NULL;
+  else if(SCHED == STCF_SCHEDULER){
+    ;
   }
-  if((int)(head->thread_tcb->threadId)==(int)(threadID)){
-    printf("found as head\n");
-    return head->thread_tcb;
-  }
-  while(head!=NULL && (int)(head->thread_tcb->threadId)!=(int)(threadID) ){
-    printf("ID: %d\n",head->thread_tcb->threadId);
+  else if(SCHED == FIFO_SCHEDULER){
+    //pthread_mutex_lock(&qLock);
+    if(threadQ == NULL)
+    {
+      printf("Queue is Null\n");
+      return NULL;
+    }
+    //Linear search through Queue for threadID
+    queueNode* head=threadQ->head;
+    printf("about to search list for thread %d\n",threadID);
+    if(head==NULL){
+      printf("head was NULL while searching for thread # (%d)\n", threadID);
+      return NULL;
+    }
     if((int)(head->thread_tcb->threadId)==(int)(threadID)){
-      printf("did we actually find the thread: %d??\n",head->thread_tcb->threadId);
+      printf("found as head\n");
       return head->thread_tcb;
     }
-    head=head->next;
-  }
+    while(head!=NULL && (int)(head->thread_tcb->threadId)!=(int)(threadID) ){
+      printf("ID: %d\n",head->thread_tcb->threadId);
+      if((int)(head->thread_tcb->threadId)==(int)(threadID)){
+        printf("did we actually find the thread: %d??\n",head->thread_tcb->threadId);
+        return head->thread_tcb;
+      }
+      head=head->next;
+    }
 
-  //Reached end of list
-  if(head==NULL)
-  {
-    printf("Thread (%d) not found.\n", threadID);
-    return NULL;
+    //Reached end of list
+    if(head==NULL)
+    {
+      printf("Thread (%d) not found.\n", threadID);
+      return NULL;
+    }
+    //Thread found
+    printf("found thread? %d\n",head->thread_tcb->threadId);
+    return head->thread_tcb;
+    //pthread_mutex_unlock(&qLock);
   }
-  //Thread found
-  printf("found thread? %d\n",head->thread_tcb->threadId);
-  return head->thread_tcb;
-  //pthread_mutex_unlock(&qLock);
 
 }
 
@@ -642,23 +689,31 @@ void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
 
 queueNode* getTopOfQueue(){ // returns top of queue according to current scheduling paradigm
   //pthread_mutex_lock(&qLock);
-  if(threadQ==NULL){
-    printf("Queue is NULL!!!\n");
-    //pthread_mutex_unlock(&qLock);
-
-    return NULL;
+  if(SCHED == MLFQ_SCHEDULER){
+    ;
   }
-  queueNode* head=threadQ->head;
-
-  if(head==NULL){
-     printf("Head is NULL\n");
-     //pthread_mutex_unlock(&qLock);
-
-    return NULL;
+  else if(SCHED == STCF_SCHEDULER){
+    ;
   }
-  else{
-    //pthread_mutex_unlock(&qLock);
-    return head;
+  else if(SCHED == FIFO_SCHEDULER){
+    if(threadQ==NULL){
+      printf("Queue is NULL!!!\n");
+      //pthread_mutex_unlock(&qLock);
+
+      return NULL;
+    }
+    queueNode* topOfQueue=threadQ->head;
+
+    if(topOfQueue==NULL){
+       printf("Head is NULL\n");
+       //pthread_mutex_unlock(&qLock);
+
+      return NULL;
+    }
+    else{
+      //pthread_mutex_unlock(&qLock);
+      return topOfQueue;
+    }
   }
   // ifndef MLFQ
   // MLFQ top of queue
@@ -668,51 +723,68 @@ void removeFromQueue(queueNode *finishedThread){
   //Gonna have to change this logic
   // CURRENTLY this function removes whatever is the HEAD of the Q
   //pthread_mutex_lock(&qLock);
-  if(finishedThread==NULL){
-    printf("Cannot remove NULL thread\n");
-    //pthread_mutex_unlock(&qLock);
+  if(SCHED == MLFQ_SCHEDULER){
+    ;
+  }
+  else if(SCHED == STCF_SCHEDULER){
+    ;
+  }
+  else if(SCHED == FIFO_SCHEDULER){
+    if(finishedThread==NULL){
+      printf("Cannot remove NULL thread\n");
+      //pthread_mutex_unlock(&qLock);
 
-    return;
-  }
-  if(threadQ==NULL || threadQ->head==NULL)
-  {
-    printf("Queue was empty, cannot remove\n");
-    //pthread_mutex_unlock(&qLock);
-    return;
-  }
-  if(threadQ->head->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
-    queueNode* tmp=threadQ->head;
-    threadQ->head=threadQ->head->next;
-    freeQueueNode(tmp);
-    printf("Removed head\n");
-    //pthread_mutex_unlock(&qLock);
-    return;
-  }
-  queueNode* prev=threadQ->head;
-  queueNode* current=threadQ->head->next;
-  while(current!=NULL){
-    if(current->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
-      printf("removing thread: %d\n",current->thread_tcb->threadId);
-      prev->next=current->next;
-      freeQueueNode(current);
+      return;
+    }
+    if(threadQ==NULL || threadQ->head==NULL)
+    {
+      printf("Queue was empty, cannot remove\n");
       //pthread_mutex_unlock(&qLock);
       return;
     }
-    prev=prev->next;
-    current=current->next;
+    if(threadQ->head->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+      queueNode* tmp=threadQ->head;
+      threadQ->head=threadQ->head->next;
+      freeQueueNode(tmp);
+      printf("Removed head\n");
+      //pthread_mutex_unlock(&qLock);
+      return;
+    }
+    queueNode* prev=threadQ->head;
+    queueNode* current=threadQ->head->next;
+    while(current!=NULL){
+      if(current->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+        printf("removing thread: %d\n",current->thread_tcb->threadId);
+        prev->next=current->next;
+        freeQueueNode(current);
+        //pthread_mutex_unlock(&qLock);
+        return;
+      }
+      prev=prev->next;
+      current=current->next;
+    }
+    printf("Could not find thread to remove\n");
+    //pthread_mutex_unlock(&qLock);
+    return;
   }
-  printf("Could not find thread to remove\n");
-  //pthread_mutex_unlock(&qLock);
-  return;
   //TODO: implement other types of removing from Q's and multi level Q's
+  return;
 }
 
-queueNode *getNextToRun(){
-  queueNode *nextThread = threadQ->head;
-
-  //TODO: implement other types of returning next from Q's and multi level Q's
-  return nextThread;
-}
+// queueNode *getNextToRun(){
+//   if(SCHED == MLFQ_SCHEDULER){
+//     ;
+//   }
+//   else if(SCHED == STCF_SCHEDULER){
+//     ;
+//   }
+//   else if(SCHED == FIFO_SCHEDULER){
+//     queueNode *nextThread = threadQ->head;
+//   }
+//
+//   //TODO: implement other types of returning next from Q's and multi level Q's
+//   return nextThread;
+// }
 mutexNode *findMutex(int mutexId){// searches and returns mutex that has a matching mutexId
   ignoreSignal=1;
   mutexNode *mutexPtr = mutexList;
@@ -738,6 +810,4 @@ void freeTcb(tcb* tcb){
   free(tcb->context.uc_stack.ss_sp);
   free(tcb->return_context.uc_stack.ss_sp);
   return;
-
-
 }
