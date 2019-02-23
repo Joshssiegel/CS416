@@ -303,7 +303,7 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
   mutexNode *mutexToLock = findMutex(mutex->mutexId);
 
   if(mutexToLock == NULL){
-    printf("Mutex %d has not been initialized\n",mutex->mutexId);
+    printf("Mutex %d has not been initialized, cannot lock\n",mutex->mutexId);
     return -1;
   }
   else{
@@ -632,7 +632,6 @@ static void schedule() {
 }
 
 void printQ(){
-  PRINTFUNC
   queueNode *ptr = threadQ->head;
   printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
   while(ptr!=NULL){
@@ -641,15 +640,6 @@ void printQ(){
   }
   printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
 }
-
-/* Preemptive SJF (STCF) scheduling algorithm */
-static void sched_stcf() {
-	// Your own implementation of STCF
-	// (feel free to modify arguments and return types)
-
-	// YOUR CODE HERE
-}
-// Feel free to add any other functions you need
 
 // YOUR CODE HERE
 //Marks finished Threads as DONE
