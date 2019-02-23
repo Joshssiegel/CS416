@@ -126,8 +126,8 @@ queueNode *getNextToRun();
 void removeFromQueue(queueNode*);
 void start_timer(int);
 mutexNode *findMutex(int);
-void SIGALRM_MIRROR();
-
+void freeQueueNode(queueNode*);
+void freeTcb(tcb*);
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
 #define pthread_mutex_t my_pthread_mutex_t

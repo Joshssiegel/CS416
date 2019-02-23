@@ -398,13 +398,15 @@ static void schedule() {
     printf("thread (%d) is done, removing\n", finishedThread->thread_tcb->threadId);
 
     // threadQ->head=finishedThread->next; // removing
+    int join_boolean=finishedThread->thread_tcb->join_boolean;
+    int finishedThreadId=finishedThread->thread_tcb->threadId;
     removeFromQueue(finishedThread);
     // queueNode* threadToRun=threadQ->head; // get next to run
     queueNode* threadToRun=getNextToRun(); // get next to run
 
-    if(finishedThread->thread_tcb->join_boolean==1){
+    if(join_boolean==1){
       //swap to main
-      printf("THREAD (%d) to join is DONE, returning to main\n", finishedThread->thread_tcb->threadId);
+      printf("THREAD (%d) to join is DONE, returning to main\n", finishedThreadId);
       // free(finishedThread); ADD THIS
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
@@ -580,7 +582,7 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   printf("Found thread! about to interrupt to remove this thread!\n");
   finishedThread->thread_status=DONE;
-  free(finishedThread->context.uc_stack.ss_sp);
+
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   SIGALRM_Handler();
@@ -679,7 +681,9 @@ void removeFromQueue(queueNode *finishedThread){
     return;
   }
   if(threadQ->head->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
+    queueNode* tmp=threadQ->head;
     threadQ->head=threadQ->head->next;
+    freeQueueNode(tmp);
     printf("Removed head\n");
     //pthread_mutex_unlock(&qLock);
     return;
@@ -690,6 +694,7 @@ void removeFromQueue(queueNode *finishedThread){
     if(current->thread_tcb->threadId==finishedThread->thread_tcb->threadId){
       printf("removing thread: %d\n",current->thread_tcb->threadId);
       prev->next=current->next;
+      freeQueueNode(current);
       //pthread_mutex_unlock(&qLock);
       return;
     }
@@ -720,4 +725,19 @@ mutexNode *findMutex(int mutexId){// searches and returns mutex that has a match
   }
   ignoreSignal=0;
   return NULL;
+}
+void freeQueueNode(queueNode* node){
+  tcb* tcbToFree=node->thread_tcb;
+  freeTcb(tcbToFree);
+  free(node);
+  printf("Freed queue node too\n");
+  return;
+}
+void freeTcb(tcb* tcb){
+  printf("Freed allocated stack for thread %d\n",tcb->threadId);
+  free(tcb->context.uc_stack.ss_sp);
+  free(tcb->return_context.uc_stack.ss_sp);
+  return;
+
+
 }
