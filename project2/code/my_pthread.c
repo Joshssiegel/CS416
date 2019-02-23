@@ -7,6 +7,7 @@
 // iLab Server:
 //
 #include "my_pthread_t.h"
+#include <execinfo.h>
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
@@ -15,8 +16,11 @@ ucontext_t schedulerContext;
 ucontext_t parentContext;
 int threadCounter=0;
 int mutexCounter=0;
-threadQueue* threadQ=NULL;
 
+int qLock = 0;
+
+threadQueue* threadQ=NULL;
+mutexNode *mutexList=NULL;
 //ucontext_t processFinishedJobContext;
 
 /* create a new thread */
@@ -224,7 +228,7 @@ int my_pthread_mutex_init(my_pthread_mutex_t *mutex,
   newMutexNode->mutex->isLocked=0;
   newMutexNode->mutex->mutexId=++mutexCounter;
   newMutexNode->next=mutexList;
-  mutexList->head=newMutexNode;
+  mutexList=newMutexNode;
 	// YOUR CODE HERE
 	return 0;
 };
@@ -386,13 +390,21 @@ static void schedule() {
 }
 
 void SIGALRM_Handler(){
+  PRINTFUNC
   //TODO: Check if parentContext is the one who was interrupted. Could be thread or Main
   //swapcontext(&parentContext,&schedulerContext);
 
   //schedule();
   //printf("Ok resumin now\n");
   //get the thread that was just running.
-  //printf("Interrupted!\n");
+  printf("Interrupted!\n");
+
+  if(firstSchedule==1){
+    printf("Getting main context\n");
+    getcontext(&parentContext);
+  }
+
+
   queueNode* finishedThread= getTopOfQueue();
     //No jobs in queue
   if(finishedThread==NULL)
@@ -408,6 +420,16 @@ void SIGALRM_Handler(){
     printf("\nInterrupted from Main, switching to schedule context\n");
     swapcontext(&parentContext,&schedulerContext);
     printf("Resuming Main\n");
+    if(threadQ->head==NULL){
+      // char buffer[500];
+      // printf("WTF?\n");
+      // backtrace(buffer, 256);
+      // printf("BUFFER: %s\n", *buffer);
+      // setcontext(&schedulerContext);
+    }
+    printQ();
+    printf("\n^^^^^That was the Q before resuming main.\n" );
+    return;
   }
   //top of queue was Running or Done
   else{
@@ -418,6 +440,16 @@ void SIGALRM_Handler(){
 
 }
 
+void printQ(){
+  PRINTFUNC
+  queueNode *ptr = threadQ->head;
+  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+  while(ptr!=NULL){
+    printf("(%d)===>", ptr->thread_tcb->threadId);
+    ptr=ptr->next;
+  }
+  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+}
 
 /* Preemptive SJF (STCF) scheduling algorithm */
 static void sched_stcf() {
@@ -518,7 +550,11 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
 void removeFromQueue(queueNode *finishedThread){
   //Gonna have to change this logic
   // CURRENTLY this function removes whatever is the HEAD of the Q
+  printf("Q before\n");
+  printQ();
   threadQ->head=finishedThread->next;
+  printf("Q after\n");
+  printQ();
   return;
   //TODO: implement other types of removing from Q's and multi level Q's
 }

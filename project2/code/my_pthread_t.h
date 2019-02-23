@@ -17,6 +17,7 @@
 #define STACK_SIZE 1048576//A megabyte
 #define TIME_QUANTUM 10//milliseconds
 
+#define PRINTFUNC printf("_____FUNCTION____%s\n", __FUNCTION__);
 
 /* include lib header files that you need here: */
 #include <time.h>//added
@@ -66,7 +67,7 @@ typedef struct my_pthread_mutex_t {
 
 //mutex list definition
 typedef struct _mutexNode {
-  struct _mutexNode next;
+  struct _mutexNode *next;
   my_pthread_mutex_t *mutex;
 } mutexNode;
 
