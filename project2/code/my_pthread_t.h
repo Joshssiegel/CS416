@@ -43,6 +43,10 @@
    MLFQ_SCHEDULER,STCF_SCHEDULER,FIFO_SCHEDULER
  }scheduler;
 typedef uint my_pthread_t; // a integer identifier
+
+void  *returnValues[1000000]; // an array of void pointers to store return values of threads
+
+
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
   //boolean to check on JOIN

@@ -26,7 +26,7 @@ int	 pSum[R_SIZE];
 int  sum = 0;
 
 /* A CPU-bound task to do parallel array addition */
-void parallel_calculate(void* arg) {
+int parallel_calculate(void* arg) {
 	printf("Starting Parallel Calculating %d\n ", (1+*(int*)arg));//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
@@ -40,12 +40,13 @@ void parallel_calculate(void* arg) {
 	}
 	for (j = n; j < R_SIZE; j += thread_num) {
 		 pthread_mutex_lock(&mutex);
-		 //printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
+		 printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
 		sum += pSum[j];
-		 //printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
+		 printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
 		 pthread_mutex_unlock(&mutex);
 	}
 	printf("finished function parallel calculate %d\n",(*(int*)arg+1));
+	return (1+*(int*)arg);
 	// pthread_exit(NULL);
 
 
@@ -111,11 +112,14 @@ int main(int argc, char **argv) {
 	for (i = 0; i < thread_num; ++i)
 		pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]);
 
+		int *rval = 69;
+
 	//my_pthread_schedule(0);
 	printf("ABOUT TO JOIN\n");
 	for (i = 0; i < thread_num; ++i){
 		printf("JOINING ON (%d)\n", thread[i]);
-		pthread_join(thread[i], NULL);
+		pthread_join(thread[i], &rval);
+		// printf("In MAIN, after waiting on thread (%d), we got retval as ==> (%d)\n", i+1, rval);
 	}
 
 	clock_gettime(CLOCK_REALTIME, &end);
