@@ -33,11 +33,11 @@ void parallel_calculate(void* arg) {
 	int r=10;
 	for (j = n; j < R_SIZE; j += thread_num) {
 		for (i = 0; i < C_SIZE; ++i) {
-			r = (rand() % (100000 + 1 - 1)) + 1;
+			//r = (rand() % (1000000000 + 1 - 1)) + 1;
 			pSum[j] += a[j][i] * i;
-			if(r<=3){
+			if(r==1){
 				printf("RANDOM YIELD because r is %d\n",r);
-				my_pthread_yield();
+				//my_pthread_yield();
 			}
 
 			//if (i % 100000 == 0)
