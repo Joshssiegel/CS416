@@ -406,6 +406,12 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
     //Move first element of blockedList to schedule list
     //Lock again
     __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),1);
+
+    printf("BLOCKED LIST: \n");
+    printQ(blockedList);
+    printf("Schedule LIST: \n");
+    printQ(threadQ);
+    //find in blocked list, remove it,
     //Insert correctly into scheduling list
     queueNode* prev=blockedList->head;
     queueNode* unblockedNode=blockedList->head->next;
@@ -416,26 +422,32 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
     else if(prev->thread_tcb->blocked_from==mutexToUnlock->mutex->mutexId)
     {
       unblockedNode=prev;
+      printf("found blocked thread as head\n");
     }
     else{
       while(unblockedNode!=NULL && unblockedNode->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
-        unblockedNode=unblockedNode->next;
+        printf("unblocked node is blocked from: %d\n",unblockedNode->thread_tcb->blocked_from);
 
+        unblockedNode=unblockedNode->next;
+        prev=prev->next;
       }
     }
     //did not find a blocked thread by this mutex
     if(unblockedNode==NULL){
-      printf("BLOCKED LIST: \n");
-      printQ(blockedList);
-      printf("Schedule LIST: \n");
-      printQ(threadQ);
       printf("Nobody is blocked by this mutex, unlock it\n");
       __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0);
       return 0;
     }
-    //remove it from blocked list
-    prev->next=unblockedNode->next;
-
+    else if(unblockedNode==blockedList->head)
+    {
+      blockedList->head=blockedList->head->next;
+      printf("removed head of blockedlist\n");
+    }
+    else{
+      //remove it from blocked list
+      printf("\nREMOVING from middle of blockedlist\n");
+      prev->next=unblockedNode->next;
+    }
     unblockedNode->thread_tcb->blocked_from=0;
     insertIntoQueue(unblockedNode);
   }
@@ -1139,6 +1151,7 @@ void insertIntoQueue(queueNode* nodeToInsert){
       nodeToInsert->next = threadQ->head;
       threadQ->head = nodeToInsert;
       //printQ(threadQ);
+      //printQ(blockedList);
       return;
     }
     else{
