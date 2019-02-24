@@ -371,7 +371,6 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
         queueNode* runningThread=getTopOfQueue();
         runningThread->thread_tcb->blocked_from=mutexToLock->mutex->mutexId;
         my_pthread_yield();
-        printf("")
     }
     mutexToLock->mutex->isLocked = 1;
     //printf("Successfully locked mutex %d\n",mutexToLock->mutex->mutexId);
@@ -396,6 +395,13 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
   if(__sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0)==0){
     printf("Mutex is already unlocked!\n");
     return -1;
+  }
+  if(blockedList->head!=NULL){
+    //Move first element of blockedList to schedule list
+
+  }
+  else{
+    return 0;
   }
   //printf("Unlocked Mutex\n");
   //else we are already unlocked it
@@ -940,6 +946,65 @@ int removeFromQueueHelper(queueNode *finishedThread){
     return -1;
   }
 
+}
+void insertIntoQueue(queueNode* nodeToInsert){
+  if(SCHED == MLFQ_SCHEDULER){
+    priority=nodeToInsert->thread_tcb->priority;
+    if(priority==0){
+      nodeToInsert->next=multiQ->queue0->head;
+      multiQ->queue0->head=nodeToInsert;
+    }
+    else if(priority==1){
+      nodeToInsert->next=multiQ->queue1->head;
+      multiQ->queue1->head=nodeToInsert;
+    }
+    else if(priority == 2){
+      nodeToInsert->next=multiQ->queue2->head;
+      multiQ->queue2->head=nodeToInsert;
+    }
+    else if(priority == 3){
+      nodeToInsert->next=multiQ->queue3->head;
+      multiQ->queue3->head=nodeToInsert;
+    }
+    else{
+      printf("ERROR with priorities\n");
+      exit(0);
+    }
+    return;
+
+  }
+  else if(SCHED == STCF_SCHEDULER){
+    if(threadQ == NULL || threadQ->head == NULL){
+      printf("Our sanity check failed in STCF update thread position.\n");
+      exit(1);
+    }
+    //No other elements, or if finished thread is still shortest to completion, run it again
+    if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=finishedThread->thread_tcb->time_ran){
+      finishedThread->next = threadQ->head;
+      threadQ->head = finishedThread;
+      //printQ(threadQ);
+      return;
+    }
+    else{
+      queueNode *prev = threadQ->head;
+      queueNode *current = threadQ->head->next;
+
+      while(prev!=NULL){
+        if(current==NULL || current->thread_tcb->time_ran>finishedThread->thread_tcb->time_ran){
+          prev->next = finishedThread;
+          finishedThread->next = current;
+          //printQ(threadQ);
+          return;
+        }
+        prev=prev->next;
+        current=current->next;
+      }
+    }
+
+  }
+  else{
+    printf("Adding to FIFO, lets not deal with that yet \n");
+  }
 }
 void updateThreadPosition(queueNode* finishedThread){
   if(SCHED == MLFQ_SCHEDULER){
