@@ -111,14 +111,15 @@ int main(int argc, char **argv) {
 
 	for (i = 0; i < thread_num; ++i)
 		pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]);
-
-		int *rval = 69;
+		int r=0;
+		int *rval = &r;
 
 	//my_pthread_schedule(0);
 	printf("ABOUT TO JOIN\n");
 	for (i = 0; i < thread_num; ++i){
 		printf("JOINING ON (%d)\n", thread[i]);
-		pthread_join(thread[i], &rval);
+		pthread_join(thread[i], rval);
+		printf("&& value of rturn is: %d or %d\n",r,*rval);
 		// printf("In MAIN, after waiting on thread (%d), we got retval as ==> (%d)\n", i+1, rval);
 	}
 
