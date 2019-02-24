@@ -154,6 +154,8 @@ int removeFromQueueHelper(queueNode*);
 void removeFromQueue(queueNode*);
 void removeFromMLFQ(queueNode*);
 void updateThreadPosition(queueNode*);
+void insertIntoQueue(queueNode* );
+
 
 void start_timer(int);
 mutexNode *findMutex(int);
