@@ -435,6 +435,7 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
   else{
     return 0;
   }
+  
   //printf("Unlocked Mutex\n");
   //else we are already unlocked it
   return 0;
