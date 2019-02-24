@@ -28,7 +28,7 @@ int res = 0;
 void vector_multiply(void* arg) {
 	int i = 0;
 	int n = *((int*) arg);
-	
+
 	for (i = n; i < VECTOR_SIZE; i += thread_num) {
 		//printf("%d\n", n);
 		pthread_mutex_lock(&mutex);
@@ -41,7 +41,7 @@ void verify() {
 	int i = 0;
 	res = 0;
 	for (i = 0; i < VECTOR_SIZE; i += 1) {
-		res += r[i] * s[i];	
+		res += r[i] * s[i];
 	}
 	printf("verified res is: %d\n", res);
 }
