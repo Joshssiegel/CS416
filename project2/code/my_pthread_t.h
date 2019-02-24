@@ -92,6 +92,7 @@ typedef struct _queueNode{
   struct _queueNode* next;
 } queueNode;
 
+
 typedef struct _threadQueue {
   struct _queueNode* head;
   struct _queueNode* tail;
@@ -153,7 +154,12 @@ queueNode *getNextToRun();
 int removeFromQueueHelper(queueNode*);
 void removeFromQueue(queueNode*);
 void removeFromMLFQ(queueNode*);
+int removeFromQueueHelper_NoFree(queueNode*);
+queueNode* removeFromQueue_NoFree(queueNode*);
+void removeFromMLFQ_NoFree(queueNode*);
 void updateThreadPosition(queueNode*);
+
+void insertIntoBlocked(queueNode*);
 
 void start_timer(int);
 mutexNode *findMutex(int);
