@@ -17,6 +17,8 @@ ifeq ($(SCHED), PSJF)
 	$(CC) -pthread $(CFLAGS) my_pthread.c
 else ifeq ($(SCHED), MLFQ)
 	$(CC) -pthread $(CFLAGS) -DMLFQ my_pthread.c
+else ifeq ($(SCHED), FIFO)
+		$(CC) -pthread $(CFLAGS) -DFIFO my_pthread.c
 else
 	echo "no such scheduling algorithm"
 endif

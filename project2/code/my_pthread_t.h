@@ -16,8 +16,13 @@
 
 #define STACK_SIZE 1048576//A megabyte
 #define TIME_QUANTUM 10//milliseconds
-
-#define PRINTFUNC printf("_____FUNCTION____%s\n", __FUNCTION__);
+#ifdef MLFQ
+	#define SCHED MLFQ_SCHEDULER
+#elif FIFO
+  #define SCHED FIFO_SCHEDULER
+#else
+  #define SCHED STCF_SCHEDULER
+#endif
 
 /* include lib header files that you need here: */
 #include <time.h>//added
@@ -33,6 +38,10 @@
  typedef enum _status{
    READY,RUNNING,DONE
  }status;
+
+ typedef enum _scheduler{
+   MLFQ_SCHEDULER,STCF_SCHEDULER,FIFO_SCHEDULER
+ }scheduler;
 typedef uint my_pthread_t; // a integer identifier
 
 void  *returnValues[1000000]; // an array of void pointers to store return values of threads
@@ -51,14 +60,14 @@ typedef struct threadControlBlock {
   ucontext_t return_context;
 
 	// thread stack
-  //We think this is part of the context
 	// thread priority
   int priority; //0 is highest priority
 
 	// And more ...
 
 	// YOUR CODE HERE
-  int time_quantum_counter;
+  //int time_quantum_counter;
+  unsigned long int time_ran;
 } tcb;
 
 /* mutex struct definition */
@@ -129,6 +138,8 @@ queueNode* getTopOfQueue();
 queueNode *getNextToRun();
 
 void removeFromQueue(queueNode*);
+void updateThreadPosition(queueNode*);
+
 void start_timer(int);
 mutexNode *findMutex(int);
 void freeQueueNode(queueNode*);
