@@ -14,6 +14,7 @@
 /* To use real pthread Library in Benchmark, you have to comment the USE_MY_PTHREAD macro */
 #define USE_MY_PTHREAD 1
 
+#define LOWEST_PRIORITY 3
 #define STACK_SIZE 1048576//A megabyte
 #define TIME_QUANTUM 10//milliseconds
 #ifdef MLFQ
@@ -46,11 +47,11 @@ typedef uint my_pthread_t; // a integer identifier
 
 void  *returnValues[1000000]; // an array of void pointers to store return values of threads
 
-
 typedef struct threadControlBlock {
 	/* add important states in a thread control block */
   //boolean to check on JOIN
   int join_boolean;
+  int blocked_from;
   // thread Id
   my_pthread_t *threadId;
 	// thread status
@@ -95,6 +96,16 @@ typedef struct _threadQueue {
   struct _queueNode* head;
   struct _queueNode* tail;
 } threadQueue;
+
+
+typedef struct _multiQueue {
+  threadQueue *queue0;
+  threadQueue *queue1;
+  threadQueue *queue2;
+  threadQueue *queue3;
+} multiQueue;
+
+
 // YOUR CODE HERE
 /* Function Declarations: */
 
@@ -129,7 +140,9 @@ void SIGALRM_Handler();
 void processFinishedJob(int);
 
 /*Search for a thread by its threadID*/
+tcb* searchMLFQ(int);
 tcb* findThread(int);
+tcb* findThreadHelper(int);
 
 static void schedule();
 
@@ -137,7 +150,9 @@ queueNode* getTopOfQueue();
 
 queueNode *getNextToRun();
 
+int removeFromQueueHelper(queueNode*);
 void removeFromQueue(queueNode*);
+void removeFromMLFQ(queueNode*);
 void updateThreadPosition(queueNode*);
 
 void start_timer(int);
