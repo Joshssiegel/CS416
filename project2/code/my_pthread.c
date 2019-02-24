@@ -420,22 +420,29 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
     else{
       while(unblockedNode!=NULL && unblockedNode->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
         unblockedNode=unblockedNode->next;
+
       }
     }
     //did not find a blocked thread by this mutex
     if(unblockedNode==NULL){
+      printf("BLOCKED LIST: \n");
+      printQ(blockedList);
+      printf("Schedule LIST: \n");
+      printQ(threadQ);
       printf("Nobody is blocked by this mutex, unlock it\n");
       __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0);
       return 0;
     }
     //remove it from blocked list
+    prev->next=unblockedNode->next;
+
     unblockedNode->thread_tcb->blocked_from=0;
     insertIntoQueue(unblockedNode);
   }
   else{
     return 0;
   }
-  
+
   //printf("Unlocked Mutex\n");
   //else we are already unlocked it
   return 0;
@@ -791,7 +798,7 @@ void processFinishedJob(int threadID){
 
 void insertIntoBlocked(queueNode *finishedThread){
   if(blockedList==NULL){
-    print("BlockedList is NULL, exiting.\n");
+    printf("BlockedList is NULL, exiting.\n");
     exit(0);
   }
   if(blockedList->head==NULL){
