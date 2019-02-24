@@ -7,7 +7,6 @@
 // iLab Server:
 
 #include "my_pthread_t.h"
-#include <execinfo.h>
 
 // INITAILIZE ALL YOUR VARIABLES HERE
 // YOUR CODE HERE
@@ -137,7 +136,10 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
       ;
     }
     else if(SCHED == STCF_SCHEDULER){
-      ;
+      threadQ=(threadQueue*) malloc(sizeof(threadQueue));
+      //initialize the head and tail
+      threadQ->head=qNode;
+      threadQ->tail=NULL;
     }
     else if(SCHED == FIFO_SCHEDULER){
       threadQ=(threadQueue*) malloc(sizeof(threadQueue));
@@ -156,11 +158,25 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
       ;
     }
     else if(SCHED == STCF_SCHEDULER){
-      ;
+      if(threadQ->head == NULL){
+        threadQ->head = qNode;
+      }
+      else{
+        qNode->next = threadQ->head;
+        threadQ->head=qNode;
+      }
+      printf("STCF thread is being added\n");
     }
     else if(SCHED == FIFO_SCHEDULER){
-      threadQ->tail->next=qNode;
-      threadQ->tail=qNode;
+      if(threadQ->head == NULL){
+        threadQ->head = qNode;
+        threadQ->tail= qNode;
+
+      }
+      else{
+        threadQ->tail->next=qNode;
+        threadQ->tail=qNode;
+      }
     }
   }
   //ALLOW TIMER TO CONTINUE
@@ -191,11 +207,18 @@ void my_pthread_exit(void *value_ptr) {
 
 
   ignoreSignal=1;
+
   queueNode* finishedQNode = getTopOfQueue();
   tcb* finishedThread=finishedQNode->thread_tcb;
   //Set to done
   printf("\nA job just decided to exit with ID %d \n",finishedThread->threadId);
   finishedThread->thread_status=DONE;
+  if(value_ptr!=NULL){
+    //TODO: equals *value_ptr or value_ptr??
+    returnValues[(int)finishedThread->threadId]=value_ptr;
+    printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", (int)finishedThread->threadId, returnValues[(int)finishedThread->threadId]);
+  }
+
   ignoreSignal=0;
   SIGALRM_Handler();
 
@@ -454,7 +477,7 @@ static void sched_fifo() {
   clock_gettime(CLOCK_REALTIME, &timeCheck);
   unsigned long timeRan=0;
   if(!firstSchedule){
-    timeRan=(timeCheck.tv_sec - prev_time.tv_sec) * 1000 + (timeCheck.tv_nsec - prev_time.tv_nsec) / 1000000;
+    timeRan=(timeCheck.tv_sec - prev_time.tv_sec) * 1000 + ((double)timeCheck.tv_nsec - (double)prev_time.tv_nsec) / 1000000.0;
     printf("scheduling time: %lu milli-seconds\n", timeRan);
   }
   else{
@@ -565,19 +588,13 @@ static void sched_fifo() {
   finishedThread->thread_tcb->thread_status=READY;
   finishedThread->thread_tcb->time_ran+=timeRan;
   printf("about to swap out running Thread: %d which has ran for %ul milliseconds\n",(finishedThread->thread_tcb->threadId),finishedThread->thread_tcb->time_ran);
-  //Move it to the back
-  threadQ->tail->next=finishedThread;
-  threadQ->tail=finishedThread;
-  threadQ->head=threadQ->head->next;
-  finishedThread->next=NULL;
+  //UPDATE THREAD POSITION
+  updateThreadPosition(finishedThread);
+
   //Setup next thread to run
   // queueNode* threadToRun=threadQ->head;
   queueNode* threadToRun=getTopOfQueue();
   threadToRun->thread_tcb->thread_status=RUNNING;
-  //Swap context saves lace in old context for later
-  //int setStatus=swapcontext(&(finishedThread->thread_tcb->context),&(threadToRun->thread_tcb->context));
-  //ALLOW TIMER TO CONTINUE
-  //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   int setStatus=setcontext(&(threadToRun->thread_tcb->context));
   if(setStatus!=0){
@@ -594,10 +611,6 @@ static void sched_fifo() {
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   setcontext(&parentContext);
-  // if (sched == STCF)
-  //		sched_stcf();
-  // else if (sched == MLFQ)
-  // 		sched_mlfq();
 
   // YOUR CODE HERE
 }
@@ -611,6 +624,150 @@ static void schedule() {
   //Prevent schedule from being interrupted
 
 
+    struct timespec prev_time=timeCheck;
+    clock_gettime(CLOCK_REALTIME, &timeCheck);
+    unsigned long timeRan=0;
+    if(!firstSchedule){
+      timeRan=(timeCheck.tv_sec - prev_time.tv_sec) * 1000 + (timeCheck.tv_nsec - prev_time.tv_nsec) / 1000000;
+      printf("scheduling time: %lu milli-seconds\n", timeRan);
+    }
+    else{
+      printf("first schedule\n");
+      firstSchedule=0;
+
+    }
+    //get the thread that was just running.
+    // queueNode* finishedThread=threadQ->head;
+    queueNode* finishedThread=getTopOfQueue();
+    //No jobs in queue
+    if(finishedThread==NULL)
+    {
+      //printf("No jobs in queue\n");
+      //TODO: Set main
+      printf("we already switched to main, this should never print\n");
+      //ALLOW TIMER TO CONTINUE
+      //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      ignoreSignal=0;
+      int setStatus=setcontext(&parentContext);
+      if(setStatus!=0){
+        printf("\nSwap error but shouldnt be here anyway, error is: %d \nI'm exiting now\n",setStatus);
+        exit(0);
+      }
+    }
+    //Check if top of queue is ready
+    if(finishedThread->thread_tcb->thread_status==READY){
+      printf("Top of queue was not running (ready).\n");
+      finishedThread->thread_tcb->thread_status=RUNNING;
+      //Finished thread never actuall ran, so run it.
+      // int setStatus=setcontext(&(finishedThread->thread_tcb->context));
+
+      //TODO: Make sure main was saved in sigalarm
+      //ALLOW TIMER TO CONTINUE
+      //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+      ignoreSignal=0;
+      int setStatus=setcontext(&(finishedThread->thread_tcb->context));
+      if(setStatus!=0){
+        printf("\nOOPSIES, Swap no work in starting top of queue, error is: %d \nI'm exiting now\n",setStatus);
+        exit(0);
+      }
+      printf("should never reach here 1.\n");
+      //exit(0);
+    }
+    //Top of queue has finished executing
+    else if(finishedThread->thread_tcb->thread_status==DONE)
+    {
+      printf("thread (%d) is done, removing\n", finishedThread->thread_tcb->threadId);
+
+      // threadQ->head=finishedThread->next; // removing
+      int join_boolean=finishedThread->thread_tcb->join_boolean;
+      int finishedThreadId=finishedThread->thread_tcb->threadId;
+      removeFromQueue(finishedThread);
+      // queueNode* threadToRun=threadQ->head; // get next to run
+      queueNode* threadToRun=getTopOfQueue(); // get next to run
+
+      if(join_boolean==1){
+        //swap to main
+        printf("THREAD (%d) to join is DONE, returning to main\n", finishedThreadId);
+        // free(finishedThread); ADD THIS
+        //ALLOW TIMER TO CONTINUE
+        //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        ignoreSignal=0;
+        int setStatus=setcontext(&parentContext);
+        printf("Just set context to join (main) shouldn't be here, set Status is: %d\n",setStatus );
+        if(setStatus!=0){
+          printf("\nOOPSIES, Swap no work before returning to join, error is: %d \nI'm exiting now\n",setStatus);
+          exit(0);
+        }
+      }
+      if(threadToRun==NULL)
+      {
+        printf("No more threads to run after removing last thread switching back to main\n");
+        //ALLOW TIMER TO CONTINUE
+        //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        ignoreSignal=0;
+        int setStatus=setcontext(&parentContext); // done executing everything in Q, switching back to main
+        printf("if this prints set failed to go back to main\n");
+
+        if(setStatus!=0){
+          printf("\nOOPSIES, Swap no work when no threads to run, error is: %d \nI'm exiting now\n",setStatus);
+          exit(0);
+        }
+        //continue;
+      }
+      else{
+        printf("\nthread (%d) is going to run next\n", threadToRun->thread_tcb->threadId);
+        threadToRun->thread_tcb->thread_status=RUNNING;
+        //Swap context
+        //Set context starts from the top
+        //ALLOW TIMER TO CONTINUE
+        //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        ignoreSignal=0;
+        int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+        //int setStatus=swapcontext(&parentContext,&(threadToRun->thread_tcb->context));
+        if(setStatus!=0){
+          printf("OOPSIES, Set no work after removing a done thread and starting another one, error is: %d \nI'm exiting now\n",setStatus);
+          exit(0);
+
+        }
+      }
+
+    }
+    else{
+    //Swapping two running threads
+
+    //Change the status of the finished thread to ready
+    finishedThread->thread_tcb->thread_status=READY;
+    finishedThread->thread_tcb->time_ran+=timeRan;
+    printf("about to swap out running Thread: %d which has ran for %ul milliseconds\n",(finishedThread->thread_tcb->threadId),finishedThread->thread_tcb->time_ran);
+    //UPDATE THREAD POSITION
+    updateThreadPosition(finishedThread);
+
+    //Setup next thread to run
+    // queueNode* threadToRun=threadQ->head;
+    queueNode* threadToRun=getTopOfQueue();
+    threadToRun->thread_tcb->thread_status=RUNNING;
+    ignoreSignal=0;
+    int setStatus=setcontext(&(threadToRun->thread_tcb->context));
+    if(setStatus!=0){
+      printf("OOPSIES, Swap no work between threads, error is: %d \nI'm exiting now\n",setStatus);
+      exit(0);
+    }
+    printf("\nset staus should be 0 after swapping two threads:  %d\n",setStatus);
+    }
+
+    // Invoke different actual scheduling algorithms
+    // according to policy (STCF or MLFQ)
+    printf("end of scheduler, should not be here,\n");
+    //ALLOW TIMER TO CONTINUE
+    //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    ignoreSignal=0;
+    setcontext(&parentContext);
+    // if (sched == STCF)
+    //		sched_stcf();
+    // else if (sched == MLFQ)
+    // 		sched_mlfq();
+
+    /*
   // schedule policy
   if(SCHED == MLFQ_SCHEDULER){
   	// Choose MLFQ
@@ -628,17 +785,18 @@ static void schedule() {
     printf("STCF\n");
     sched_stcf();
   }
+  */
 
 }
 
 void printQ(){
   queueNode *ptr = threadQ->head;
-  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
   while(ptr!=NULL){
-    printf("(%d)===>", ptr->thread_tcb->threadId);
+    printf("(%d, %d)===>", ptr->thread_tcb->threadId, ptr->thread_tcb->time_ran);
     ptr=ptr->next;
   }
-  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
+  printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
 }
 
 // YOUR CODE HERE
@@ -663,12 +821,9 @@ void processFinishedJob(int threadID){
 tcb* findThread(int threadID){
 
   if(SCHED == MLFQ_SCHEDULER){
-    ;
+    return NULL;
   }
-  else if(SCHED == STCF_SCHEDULER){
-    ;
-  }
-  else if(SCHED == FIFO_SCHEDULER){
+  else if(SCHED == FIFO_SCHEDULER || SCHED == STCF_SCHEDULER){
     //pthread_mutex_lock(&qLock);
     if(threadQ == NULL)
     {
@@ -725,10 +880,7 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
   if(SCHED == MLFQ_SCHEDULER){
     ;
   }
-  else if(SCHED == STCF_SCHEDULER){
-    ;
-  }
-  else if(SCHED == FIFO_SCHEDULER){
+  else if(SCHED == FIFO_SCHEDULER || SCHED == STCF_SCHEDULER){
     if(threadQ==NULL){
       printf("Queue is NULL!!!\n");
       //pthread_mutex_unlock(&qLock);
@@ -759,10 +911,7 @@ void removeFromQueue(queueNode *finishedThread){
   if(SCHED == MLFQ_SCHEDULER){
     ;
   }
-  else if(SCHED == STCF_SCHEDULER){
-    ;
-  }
-  else if(SCHED == FIFO_SCHEDULER){
+  else if(SCHED == FIFO_SCHEDULER || SCHED == STCF_SCHEDULER){
     if(finishedThread==NULL){
       printf("Cannot remove NULL thread\n");
       //pthread_mutex_unlock(&qLock);
@@ -800,8 +949,51 @@ void removeFromQueue(queueNode *finishedThread){
     //pthread_mutex_unlock(&qLock);
     return;
   }
-  //TODO: implement other types of removing from Q's and multi level Q's
-  return;
+
+}
+void updateThreadPosition(queueNode* finishedThread){
+  if(SCHED == MLFQ_SCHEDULER){
+    ;
+  }
+  else if(SCHED == STCF_SCHEDULER){
+    if(threadQ == NULL || threadQ->head == NULL || finishedThread!=threadQ->head){
+      printf("Our sanity check failed in STCF update thread position.\n");
+      exit(1);
+    }
+    //remove from top of queue
+    threadQ->head = threadQ->head->next;
+
+    //No other elements, or if finished thread is still shortest to completion, run it again
+    if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=finishedThread->thread_tcb->time_ran){
+      finishedThread->next = threadQ->head;
+      threadQ->head = finishedThread;
+      printQ();
+      return;
+    }
+    else{
+
+      queueNode *prev = threadQ->head;
+      queueNode *current = threadQ->head->next;
+
+      while(prev!=NULL){
+        if(current==NULL || current->thread_tcb->time_ran>finishedThread->thread_tcb->time_ran){
+          prev->next = finishedThread;
+          finishedThread->next = current;
+          printQ();
+          return;
+        }
+        prev=prev->next;
+        current=current->next;
+      }
+    }
+  }
+  else if(SCHED == FIFO_SCHEDULER){
+    threadQ->tail->next=finishedThread;
+    threadQ->tail=finishedThread;
+    threadQ->head=threadQ->head->next;
+    finishedThread->next=NULL;
+    return;
+  }
 }
 
 // queueNode *getNextToRun(){

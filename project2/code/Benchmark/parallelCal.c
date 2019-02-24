@@ -30,10 +30,16 @@ void parallel_calculate(void* arg) {
 	printf("Starting Parallel Calculating %d\n ", (1+*(int*)arg));//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
-
+	int r=10;
 	for (j = n; j < R_SIZE; j += thread_num) {
 		for (i = 0; i < C_SIZE; ++i) {
+			r = (rand() % (100000 + 1 - 1)) + 1;
 			pSum[j] += a[j][i] * i;
+			if(r<=3){
+				printf("RANDOM YIELD because r is %d\n",r);
+				my_pthread_yield();
+			}
+
 			//if (i % 100000 == 0)
 				//printf("test %d ...\n", n);
 		}
@@ -46,7 +52,7 @@ void parallel_calculate(void* arg) {
 		 pthread_mutex_unlock(&mutex);
 	}
 	printf("finished function parallel calculate %d\n",(*(int*)arg+1));
-	// pthread_exit(NULL);
+	 pthread_exit(69);
 
 
 }
@@ -113,9 +119,11 @@ int main(int argc, char **argv) {
 
 	//my_pthread_schedule(0);
 	printf("ABOUT TO JOIN\n");
+	int a=0;
 	for (i = 0; i < thread_num; ++i){
 		printf("JOINING ON (%d)\n", thread[i]);
-		pthread_join(thread[i], NULL);
+		pthread_join(thread[i], &a);
+		printf("saved a to be: %d\n",a);
 	}
 
 	clock_gettime(CLOCK_REALTIME, &end);

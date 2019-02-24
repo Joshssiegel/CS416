@@ -138,6 +138,8 @@ queueNode* getTopOfQueue();
 queueNode *getNextToRun();
 
 void removeFromQueue(queueNode*);
+void updateThreadPosition(queueNode*);
+
 void start_timer(int);
 mutexNode *findMutex(int);
 void freeQueueNode(queueNode*);
