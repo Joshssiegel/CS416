@@ -157,6 +157,8 @@ int removeFromQueueHelper_NoFree(queueNode*);
 queueNode* removeFromQueue_NoFree(queueNode*);
 void removeFromMLFQ_NoFree(queueNode*);
 void updateThreadPosition(queueNode*);
+void insertIntoQueue(queueNode* );
+
 
 void insertIntoBlocked(queueNode*);
 

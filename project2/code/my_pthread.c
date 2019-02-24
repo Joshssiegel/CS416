@@ -404,7 +404,33 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
   }
   if(blockedList->head!=NULL){
     //Move first element of blockedList to schedule list
-
+    //Lock again
+    __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),1);
+    //Insert correctly into scheduling list
+    queueNode* prev=blockedList->head;
+    queueNode* unblockedNode=blockedList->head->next;
+    if(unblockedNode==NULL && prev->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
+      printf("We have an error in our blocked list\n");
+      exit(1);
+    }
+    else if(prev->thread_tcb->blocked_from==mutexToUnlock->mutex->mutexId)
+    {
+      unblockedNode=prev;
+    }
+    else{
+      while(unblockedNode!=NULL && unblockedNode->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
+        unblockedNode=unblockedNode->next;
+      }
+    }
+    //did not find a blocked thread by this mutex
+    if(unblockedNode==NULL){
+      printf("Nobody is blocked by this mutex, unlock it\n");
+      __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0);
+      return 0;
+    }
+    //remove it from blocked list
+    unblockedNode->thread_tcb->blocked_from=0;
+    insertIntoQueue(unblockedNode);
   }
   else{
     return 0;
@@ -1071,7 +1097,7 @@ int removeFromQueueHelper_NoFree(queueNode *finishedThread){
 }
 void insertIntoQueue(queueNode* nodeToInsert){
   if(SCHED == MLFQ_SCHEDULER){
-    priority=nodeToInsert->thread_tcb->priority;
+    int priority=nodeToInsert->thread_tcb->priority;
     if(priority==0){
       nodeToInsert->next=multiQ->queue0->head;
       multiQ->queue0->head=nodeToInsert;
@@ -1101,9 +1127,9 @@ void insertIntoQueue(queueNode* nodeToInsert){
       exit(1);
     }
     //No other elements, or if finished thread is still shortest to completion, run it again
-    if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=finishedThread->thread_tcb->time_ran){
-      finishedThread->next = threadQ->head;
-      threadQ->head = finishedThread;
+    if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=nodeToInsert->thread_tcb->time_ran){
+      nodeToInsert->next = threadQ->head;
+      threadQ->head = nodeToInsert;
       //printQ(threadQ);
       return;
     }
@@ -1112,9 +1138,9 @@ void insertIntoQueue(queueNode* nodeToInsert){
       queueNode *current = threadQ->head->next;
 
       while(prev!=NULL){
-        if(current==NULL || current->thread_tcb->time_ran>finishedThread->thread_tcb->time_ran){
-          prev->next = finishedThread;
-          finishedThread->next = current;
+        if(current==NULL || current->thread_tcb->time_ran>nodeToInsert->thread_tcb->time_ran){
+          prev->next = nodeToInsert;
+          nodeToInsert->next = current;
           //printQ(threadQ);
           return;
         }
