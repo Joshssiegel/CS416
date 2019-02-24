@@ -148,7 +148,6 @@ tcb* findThreadHelper(int);
 static void schedule();
 
 queueNode* getTopOfQueue();
-
 queueNode *getNextToRun();
 
 int removeFromQueueHelper(queueNode*);
