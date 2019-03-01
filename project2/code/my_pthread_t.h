@@ -37,7 +37,7 @@
 #include <malloc.h>
 
  typedef enum _status{
-   READY,RUNNING,DONE
+   READY,RUNNING,DONE,BLOCKED
  }status;
 
  typedef enum _scheduler{
@@ -51,7 +51,7 @@ typedef struct threadControlBlock {
 	/* add important states in a thread control block */
   //boolean to check on JOIN
   int join_boolean;
-  int blocked_from;
+  struct my_pthread_mutex_t* blocked_from;
   // thread Id
   my_pthread_t *threadId;
 	// thread status
@@ -147,7 +147,7 @@ tcb* findThreadHelper(int);
 
 static void schedule();
 
-queueNode* getTopOfQueue();
+queueNode* getRunningThread();
 queueNode *getNextToRun();
 
 int removeFromQueueHelper(queueNode*);

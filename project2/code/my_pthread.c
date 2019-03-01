@@ -17,7 +17,7 @@ int threadCounter=0;
 int mutexCounter=0;
 int yielded=0;
 threadQueue* threadQ=NULL;
-threadQueue* blockedList=NULL;
+queueNode* runningThread=NULL;
 multiQueue* multiQ=NULL;
 mutexNode* mutexList=NULL;
 my_pthread_mutex_t qLock;
@@ -27,7 +27,7 @@ int ignoreSignal=0;
 void threadWrapper(void * arg, void *(*function)(void*), int threadId){
   // Function call: makecontext(&newThreadContext, (void*)threadWrapper, 2, arg, (void*)function);
   void * threadReturnValue = (*function)(arg);//
-  //printf("DONE THREAD ==> (%d), in wrapper with return value ==> (%d)\n", threadReturnValue, (threadId));
+  printf("DONE THREAD ==> (%d), in wrapper with return value ==> (%d)\n", threadReturnValue, (threadId));
   returnValues[threadId] = threadReturnValue; // saving the threads return value in an array
   // void * returnValue = function((int)arg);//
 }
@@ -76,7 +76,7 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   new_tcb->threadId = *thread;
   new_tcb->thread_status=READY;
   new_tcb->join_boolean=0; //FALSE
-  new_tcb->blocked_from=0; //FALSE
+  new_tcb->blocked_from=NULL; //FALSE
 	// Create and initialize the context of this thread
 	// Allocate space of stack for this thread to run
 	// After everything is all set, push this thread into run queue
@@ -136,11 +136,6 @@ int my_pthread_create(my_pthread_t * thread, pthread_attr_t * attr,
   {
     signal(SIGALRM, SIGALRM_Handler);//SIGALRM_Handler will call scheduler
     start_timer(TIME_QUANTUM);//setting timer to fire every TIME_QUANTUM milliseconds
-
-    blockedList = (threadQueue*)malloc(sizeof(threadQueue));
-    blockedList->head = NULL;
-    blockedList->tail = NULL;
-
     if(SCHED == MLFQ_SCHEDULER){
       threadQ = (threadQueue*)12345; // HA!!!!
       multiQ = (multiQueue*)malloc(sizeof(multiQueue));
@@ -229,7 +224,8 @@ int my_pthread_yield() {
 
 	// YOUR CODE HERE
   yielded=1;
-
+  printf("yielded\n");
+  printMLFQ();
   SIGALRM_Handler();
 	return 0;
 };
@@ -245,7 +241,7 @@ void my_pthread_exit(void *value_ptr) {
 
   ignoreSignal=1;
 
-  queueNode* finishedQNode = getTopOfQueue();
+  queueNode* finishedQNode = getRunningThread();//getTopOfQueue();
   tcb* finishedThread=finishedQNode->thread_tcb;
   //Set to done
   //printf("\nA job just decided to exit with ID %d \n",finishedThread->threadId);
@@ -253,7 +249,7 @@ void my_pthread_exit(void *value_ptr) {
   if(value_ptr!=NULL){
     //TODO: equals *value_ptr or value_ptr??
     returnValues[(int)finishedThread->threadId]=value_ptr;
-    //printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", (int)finishedThread->threadId, returnValues[(int)finishedThread->threadId]);
+    //printf("In pthread_exit, thread ==> (%d) has return value ==> (%d)\n", (int)finishedThread->threadId, returnValues[(int)finishedThread->threadId]);
   }
 
   ignoreSignal=0;
@@ -270,7 +266,6 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
 	// Once this thread finishes,
 	// Deallocated any dynamic memory created when starting this thread
 	// YOUR CODE HERE
-  //TODO: returning Value_ptr
   //
 
   //First, check if thread is in the queueNode
@@ -283,6 +278,7 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
   if(thread_to_join==NULL){
     //printf("Thread to join (%d) on is no longer in queue\n",thread);
     if(value_ptr!=NULL){
+      //USE THREAD variable SINCE thread_to_join should  be freed
       *value_ptr = returnValues[(int)thread];
       //printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", thread, returnValues[thread]);
     }
@@ -303,13 +299,14 @@ int my_pthread_join(my_pthread_t thread, void **value_ptr) {
       SIGALRM_Handler();
       // Thread being JOINED on is now DONE
       if(value_ptr!=NULL){
-        *value_ptr = returnValues[(int)thread_to_join->threadId];
-        //printf("In JOIN, thread ==> (%d) has return value ==> (%d)\n", (int)thread_to_join->threadId, returnValues[(int)thread_to_join->threadId]);
+        //*value_ptr = returnValues[(int)thread_to_join->threadId];
+        //USE THREAD variable SINCE thread_to_join should  be freed
+        *value_ptr = returnValues[(int)thread];
+        //printf("In JOIN after waiting, thread ==> (%d) has return value ==> (%d)\n", (int)thread, returnValues[(int)thread]);
       }
       //printf("Done yielding the CPU after JOIN on thread (%d)\n", thread_to_join->threadId);
       return 0;
       //my_pthread_yield();
-      //WHAT DO WE DO HERE???
     }
     //If thread is done, free and return? or setContext to Main?
     else{
@@ -370,15 +367,19 @@ int my_pthread_mutex_lock(my_pthread_mutex_t *mutex) {
     //check that it hasn't already been locked
     //while(mutexToLock->mutex->isLocked==1){// we want to yield to other threads, until critical section is unlocked
 
-
     if(__sync_lock_test_and_set(&(mutexToLock->mutex->isLocked),1)==1){// we want to yield to other threads, until critical section is unlocked
         //printf("mutex %d is locked, yielding cpu\n",mutexToLock->mutex->mutexId);
         //get thread ID
-        queueNode* runningThread=getTopOfQueue();
-        runningThread->thread_tcb->blocked_from=mutexToLock->mutex->mutexId;
+        queueNode* threadThatWasRunning=getRunningThread();//getTopOfQueue();
+        threadThatWasRunning->thread_tcb->blocked_from=mutexToLock->mutex;
+        threadThatWasRunning->thread_tcb->thread_status=BLOCKED;
+        printf("Blocked thread %d and locked mutex %d\n",threadThatWasRunning->thread_tcb->threadId,mutex->mutexId);
+
         my_pthread_yield();
     }
     mutexToLock->mutex->isLocked = 1;
+    //printf("Locked Mutex %d from thread %d\n", mutexToLock->mutex->mutexId, runningThread->thread_tcb->threadId);
+
     //printf("Successfully locked mutex %d\n",mutexToLock->mutex->mutexId);
     //printf("We locked the mutex, see: %d",mutexToLock->mutex->isLocked);
     return 0;
@@ -399,63 +400,11 @@ int my_pthread_mutex_unlock(my_pthread_mutex_t *mutex) {
     return -1;
   }
   if(__sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0)==0){
-    printf("Mutex is already unlocked!\n");
+    printf("Mutex %d is already unlocked!\n",mutex->mutexId);
+    exit(1);
     return -1;
   }
-  if(blockedList->head!=NULL){
-    //Move first element of blockedList to schedule list
-    //Lock again
-    __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),1);
-
-    printf("BLOCKED LIST: \n");
-    printQ(blockedList);
-    printf("Schedule LIST: \n");
-    printQ(threadQ);
-    //find in blocked list, remove it,
-    //Insert correctly into scheduling list
-    queueNode* prev=blockedList->head;
-    queueNode* unblockedNode=blockedList->head->next;
-    if(unblockedNode==NULL && prev->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
-      printf("We have an error in our blocked list\n");
-      exit(1);
-    }
-    else if(prev->thread_tcb->blocked_from==mutexToUnlock->mutex->mutexId)
-    {
-      unblockedNode=prev;
-      printf("found blocked thread as head\n");
-    }
-    else{
-      while(unblockedNode!=NULL && unblockedNode->thread_tcb->blocked_from!=mutexToUnlock->mutex->mutexId){
-        printf("unblocked node is blocked from: %d\n",unblockedNode->thread_tcb->blocked_from);
-
-        unblockedNode=unblockedNode->next;
-        prev=prev->next;
-      }
-    }
-    //did not find a blocked thread by this mutex
-    if(unblockedNode==NULL){
-      printf("Nobody is blocked by this mutex, unlock it\n");
-      __sync_lock_test_and_set(&(mutexToUnlock->mutex->isLocked),0);
-      return 0;
-    }
-    else if(unblockedNode==blockedList->head)
-    {
-      blockedList->head=blockedList->head->next;
-      printf("removed head of blockedlist\n");
-    }
-    else{
-      //remove it from blocked list
-      printf("\nREMOVING from middle of blockedlist\n");
-      prev->next=unblockedNode->next;
-    }
-    unblockedNode->thread_tcb->blocked_from=0;
-    insertIntoQueue(unblockedNode);
-  }
-  else{
-    return 0;
-  }
-
-  //printf("Unlocked Mutex\n");
+  //printf("Unlocked Mutex %d from thread %d\n", mutex->mutexId, runningThread->thread_tcb->threadId);
   //else we are already unlocked it
   return 0;
 }
@@ -505,10 +454,10 @@ void SIGALRM_Handler(){
   //printf("Ok resumin now\n");
   //get the thread that was just running.
   //printf("Interrupted!\n");
-  queueNode* finishedThread=getTopOfQueue();
+  queueNode* finishedThread=getRunningThread();//getTopOfQueue();
 
     //No jobs in queue
-  if(finishedThread==NULL)
+  /*if(finishedThread==NULL)
   {
     //printf("No jobs in queue\n");
     //printf("\nInterrupted from Main, no jobs left in queue, going back to main\n");
@@ -516,10 +465,13 @@ void SIGALRM_Handler(){
     ignoreSignal=0;
     return;
     //setcontext(&parentContext);
-  }
+  }*/
   //Check if top of queue is ready
-  else if(finishedThread->thread_tcb->thread_status==READY){
-    //printf("\nInterrupted from Main we think, switching to schedule context\n");
+  if(finishedThread==NULL||finishedThread->thread_tcb->thread_status==READY){
+    //printf("\nInterrupted from Main, switching to schedule context\n");
+    if(finishedThread!=NULL && finishedThread->thread_tcb->thread_status==READY){
+      printf("thread that was runnign has problem, is ready not running\n");
+    }
     int swapStatus=swapcontext(&parentContext,&schedulerContext);
     if(swapStatus!=0){
       printf("Error swapping main and scheduler: %d\n",swapStatus);
@@ -535,7 +487,7 @@ void SIGALRM_Handler(){
     if(swapStatus!=0){
       printf("Error swapping top of queue and scheduler: %d\n",swapStatus);
     }
-    //printf("resuming thread %d\n",(finishedThread->thread_tcb->threadId));
+    // printf("resuming thread %d\n",(finishedThread->thread_tcb->threadId));
     return;
   }
 
@@ -582,14 +534,11 @@ static void schedule() {
     }
     //get the thread that was just running.
     // queueNode* finishedThread=threadQ->head;
-    queueNode* finishedThread=getTopOfQueue();
-
-    //No jobs in queue
+    queueNode* finishedThread=getRunningThread();//getTopOfQueue();
+    /*old implementation
     if(finishedThread==NULL)
     {
-      //printf("No jobs in queue\n");
       //TODO: Set main
-      printf("we already switched to main, this should never print\n");
       //ALLOW TIMER TO CONTINUE
       //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
       ignoreSignal=0;
@@ -598,21 +547,24 @@ static void schedule() {
         printf("\nSwap error but shouldnt be here anyway, error is: %d \nI'm exiting now\n",setStatus);
         exit(0);
       }
-    }
-
-    //Check if top of queue is ready
-    if(finishedThread->thread_tcb->thread_status==READY){
-      //printf("Top of queue was not running (ready).\n");
-
-      while(finishedThread!=NULL && finishedThread->thread_tcb->blocked_from!=0){
-        // while the thread is blocked_from a mutex, remove, find next, and ...
-          removeFromQueue_NoFree(finishedThread);
-          insertIntoBlocked(finishedThread);
-          finishedThread = getTopOfQueue();
+    }*/
+    //Check if previously running thread was main or not
+    if(finishedThread==NULL || finishedThread->thread_tcb->thread_status==READY){
+      if(finishedThread==NULL){
+        finishedThread=getNextToRun();
+        if(finishedThread==NULL){
+          //printf("no jobs in queue\n");
+          runningThread=NULL;
+          ignoreSignal=0;
+          setcontext(&parentContext);
+        }
+        printf("Main was running.\n");
       }
-
-
+      else{
+        printf("Finished thread was ready? Error in logic. \n");
+      }
       finishedThread->thread_tcb->thread_status=RUNNING;
+      runningThread=finishedThread;
       //Finished thread never actuall ran, so run it.
       // int setStatus=setcontext(&(finishedThread->thread_tcb->context));
 
@@ -639,13 +591,7 @@ static void schedule() {
       int finishedThreadId=finishedThread->thread_tcb->threadId;
       removeFromQueue(finishedThread);
       // queueNode* threadToRun=threadQ->head; // get next to run
-      queueNode* threadToRun=getTopOfQueue(); // get next to run
-      while(threadToRun!=NULL && threadToRun->thread_tcb->blocked_from!=0){
-        // while the thread is blocked_from a mutex, remove, find next, and ...
-          removeFromQueue_NoFree(threadToRun);
-          insertIntoBlocked(threadToRun);
-          threadToRun = getTopOfQueue();
-      }
+      queueNode* threadToRun=getNextToRun();//getTopOfQueue(); // get next to run
 
       if(join_boolean==1){
         //swap to main
@@ -653,6 +599,7 @@ static void schedule() {
         // free(finishedThread); ADD THIS
         //ALLOW TIMER TO CONTINUE
         //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        runningThread=NULL;
         yielded=0;
         ignoreSignal=0;
         int setStatus=setcontext(&parentContext);
@@ -664,9 +611,10 @@ static void schedule() {
       }
       if(threadToRun==NULL)
       {
-        //printf("No more threads to run after removing last thread switching back to main\n");
+        printf("No more threads to run after removing last thread switching back to main\n");
         //ALLOW TIMER TO CONTINUE
         //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+        runningThread=NULL;
         yielded=0;
         ignoreSignal=0;
         int setStatus=setcontext(&parentContext); // done executing everything in Q, switching back to main
@@ -681,6 +629,7 @@ static void schedule() {
       else{
         //printf("\nthread (%d) is going to run next\n", threadToRun->thread_tcb->threadId);
         threadToRun->thread_tcb->thread_status=RUNNING;
+        runningThread=threadToRun;
         //Swap context
         //Set context starts from the top
         //ALLOW TIMER TO CONTINUE
@@ -698,10 +647,13 @@ static void schedule() {
 
     }
     else{
-    //Swapping two running threads
+    //Swapping two running or Blocked threads
 
     //Change the status of the finished thread to ready
-    finishedThread->thread_tcb->thread_status=READY;
+    if(finishedThread->thread_tcb->thread_status==RUNNING)
+    {
+      finishedThread->thread_tcb->thread_status=READY;
+    }
     finishedThread->thread_tcb->time_ran+=timeRan;
     //LOWEST PRIORITY is actually a high value like 4 or 8
     if(yielded==0 && finishedThread->thread_tcb->priority<LOWEST_PRIORITY){
@@ -715,16 +667,13 @@ static void schedule() {
 
     //Setup next thread to run
     // queueNode* threadToRun=threadQ->head;
-    queueNode* threadToRun=getTopOfQueue();
-
-    while(threadToRun!=NULL && threadToRun->thread_tcb->blocked_from!=0){
-      // while the thread is blocked_from a mutex, remove, find next, and ...
-        removeFromQueue_NoFree(threadToRun);
-        insertIntoBlocked(threadToRun);
-        threadToRun = getTopOfQueue();
+    queueNode* threadToRun=getNextToRun();//getTopOfQueue();
+    if(threadToRun==NULL){
+      printf("ALL THREADS ARE BLOCKED, YOU ARE IN DEADLOCK, EXITING\n");
+      exit(-1);
     }
-
     threadToRun->thread_tcb->thread_status=RUNNING;
+    runningThread=threadToRun;
     yielded=0;
     ignoreSignal=0;
     int setStatus=setcontext(&(threadToRun->thread_tcb->context));
@@ -740,6 +689,7 @@ static void schedule() {
     printf("end of scheduler, should not be here,\n");
     //ALLOW TIMER TO CONTINUE
     //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
+    runningThread=NULL;
     yielded=0;
     ignoreSignal=0;
     setcontext(&parentContext);
@@ -783,7 +733,7 @@ void printQ(threadQueue *queueToPrint){
   queueNode *ptr = queueToPrint->head;
   printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
   while(ptr!=NULL){
-    printf("(%d, %d)===>", ptr->thread_tcb->threadId, ptr->thread_tcb->time_ran);
+    printf("(Thread: %d, Runtime: %d, Status: %d)===>\n", ptr->thread_tcb->threadId, ptr->thread_tcb->time_ran, ptr->thread_tcb->thread_status);
     ptr=ptr->next;
   }
   printf("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&\n");
@@ -801,31 +751,12 @@ void processFinishedJob(int threadID){
   tcb* finishedThread=findThread(threadID);
   //printf("Found thread! about to interrupt to remove this thread!\n");
   finishedThread->thread_status=DONE;
-  // finishedThread->thread_status=
 
   //sigprocmask(SIG_UNBLOCK, &signal_set, NULL);
   ignoreSignal=0;
   SIGALRM_Handler();
 }
 
-void insertIntoBlocked(queueNode *finishedThread){
-  if(blockedList==NULL){
-    printf("BlockedList is NULL, exiting.\n");
-    exit(0);
-  }
-  if(blockedList->head==NULL){
-    blockedList->head = finishedThread;
-    blockedList->tail = finishedThread;
-    blockedList->tail->next=NULL;
-    return;
-  }
-  else{
-    blockedList->tail->next = finishedThread;
-    blockedList->tail = finishedThread;
-    blockedList->tail->next = NULL;
-  }
-  return;
-}
 
 
 tcb* searchMLFQ(int threadID){
@@ -924,28 +855,98 @@ void start_timer(int timeQ){// starts a timer to fire every timeQ milliseconds
   }
 }
 
-queueNode* getTopOfQueue(){ // returns top of queue according to current scheduling paradigm
+queueNode* getNextToRun(){ // returns top of queue according to current scheduling paradigm
   //pthread_mutex_lock(&qLock);
   if(SCHED == MLFQ_SCHEDULER){
 
     if(multiQ==NULL){ // multiQ is not initialized
       return NULL;
     }
+    //printf("*********PRINTING QUEUE FROM getNextToRun**********\n");
+    //printMLFQ();
+    queueNode* indexer=multiQ->queue0->head;
+    //if(multiQ->queue0!=NULL && multiQ->queue0->head!=NULL){
+    while(indexer!=NULL){
+      if(indexer->thread_tcb->thread_status==BLOCKED){
+        //Check if it needs to be unblocked
+        if(indexer->thread_tcb->blocked_from->isLocked==0){
+          indexer->thread_tcb->thread_status=READY;
+          indexer->thread_tcb->blocked_from->isLocked=1;
 
-    if(multiQ->queue0!=NULL && multiQ->queue0->head!=NULL){
-      return multiQ->queue0->head;
+          return indexer;
+        }
+        //still blocked, go to next thread
+        else{
+          indexer=indexer->next;
+        }
+      }
+      else{
+        return indexer;
+      }
     }
-    if(multiQ->queue1!=NULL && multiQ->queue1->head!=NULL){
-      return multiQ->queue1->head;
+    //printf("Not found in queue 0\n");
+    indexer=multiQ->queue1->head;
+    while(indexer!=NULL){
+      if(indexer->thread_tcb->thread_status==BLOCKED){
+        //Check if it needs to be unblocked
+        if(indexer->thread_tcb->blocked_from->isLocked==0){
+          indexer->thread_tcb->thread_status=READY;
+          indexer->thread_tcb->blocked_from->isLocked=1;
+          return indexer;
+        }
+        //still blocked, go to next thread
+        else{
+          indexer=indexer->next;
+        }
+      }
+      else{
+        return indexer;
+      }
     }
-    if(multiQ->queue2!=NULL && multiQ->queue2->head!=NULL){
-      return multiQ->queue2->head;
+
+
+    //printf("Not found in queue 1\n");
+    indexer=multiQ->queue2->head;
+    while(indexer!=NULL){
+      if(indexer->thread_tcb->thread_status==BLOCKED){
+        //Check if it needs to be unblocked
+        if(indexer->thread_tcb->blocked_from->isLocked==0){
+          indexer->thread_tcb->thread_status=READY;
+          indexer->thread_tcb->blocked_from->isLocked=1;
+          return indexer;
+        }
+        //still blocked, go to next thread
+        else{
+          indexer=indexer->next;
+        }
+      }
+      else{
+        return indexer;
+      }
     }
-    if(multiQ->queue3!=NULL && multiQ->queue3->head!=NULL){
-      return multiQ->queue3->head;
+
+    //printf("Not found in queue 2\n");
+    indexer=multiQ->queue3->head;
+    while(indexer!=NULL){
+      if(indexer->thread_tcb->thread_status==BLOCKED){
+        //Check if it needs to be unblocked
+        if(indexer->thread_tcb->blocked_from->isLocked==0){
+          indexer->thread_tcb->thread_status=READY;
+          indexer->thread_tcb->blocked_from->isLocked=1;
+          return indexer;
+        }
+        //still blocked, go to next thread
+        else{
+          printf("thread to run: %d was blocked, scheduling other thread\n",indexer->thread_tcb->threadId);
+          indexer=indexer->next;
+        }
+      }
+      else{
+        return indexer;
+      }
     }
-    // if it reaches here, the Q is empty
-    return NULL;
+  printf("Nothing left to run\n");
+  return NULL;
   }
   else if(SCHED == FIFO_SCHEDULER || SCHED == STCF_SCHEDULER){
     if(threadQ==NULL){
@@ -963,14 +964,36 @@ queueNode* getTopOfQueue(){ // returns top of queue according to current schedul
       return NULL;
     }
     else{
-      //pthread_mutex_unlock(&qLock);
-      return topOfQueue;
+      //Search, sequentially through the queue for nodes that aren't blocked
+      queueNode* indexer=topOfQueue;
+      while(indexer!=NULL){
+        if(indexer->thread_tcb->thread_status==BLOCKED){
+          //Check if it needs to be unblocked
+          if(indexer->thread_tcb->blocked_from->isLocked==0){
+            indexer->thread_tcb->thread_status=READY;
+            //indexer->thread_tcb->blocked_from->isLocked=1;
+            if(__sync_lock_test_and_set(&(indexer->thread_tcb->blocked_from->isLocked),1)==0){
+                printf("Successfully unblocked thread %d and relocked mutex\n",indexer->thread_tcb->threadId);
+            }
+            return indexer;
+          }
+          //still blocked, go to next thread
+          else{
+            indexer=indexer->next;
+          }
+        }
+        else{
+          return indexer;
+        }
+      }
+
+      printf("No threads to schedule\n");
+      return NULL;
     }
   }
   // ifndef MLFQ
   // MLFQ top of queue
 }
-
 void removeFromQueue(queueNode *finishedThread){
   if(SCHED == MLFQ_SCHEDULER){
     removeFromMLFQ(finishedThread);
@@ -1115,114 +1138,16 @@ int removeFromQueueHelper_NoFree(queueNode *finishedThread){
   }
 
 }
-void insertIntoQueue(queueNode* nodeToInsert){
-  if(SCHED == MLFQ_SCHEDULER){
-    int priority=nodeToInsert->thread_tcb->priority;
-    if(priority==0){
-      nodeToInsert->next=multiQ->queue0->head;
-      multiQ->queue0->head=nodeToInsert;
-    }
-    else if(priority==1){
-      nodeToInsert->next=multiQ->queue1->head;
-      multiQ->queue1->head=nodeToInsert;
-    }
-    else if(priority == 2){
-      nodeToInsert->next=multiQ->queue2->head;
-      multiQ->queue2->head=nodeToInsert;
-    }
-    else if(priority == 3){
-      nodeToInsert->next=multiQ->queue3->head;
-      multiQ->queue3->head=nodeToInsert;
-    }
-    else{
-      printf("ERROR with priorities\n");
-      exit(0);
-    }
-    return;
-
-  }
-  else if(SCHED == STCF_SCHEDULER){
-    if(threadQ == NULL || threadQ->head == NULL){
-      printf("Our sanity check failed in STCF update thread position.\n");
-      exit(1);
-    }
-    //No other elements, or if finished thread is still shortest to completion, run it again
-    if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=nodeToInsert->thread_tcb->time_ran){
-      nodeToInsert->next = threadQ->head;
-      threadQ->head = nodeToInsert;
-      //printQ(threadQ);
-      //printQ(blockedList);
-      return;
-    }
-    else{
-      queueNode *prev = threadQ->head;
-      queueNode *current = threadQ->head->next;
-
-      while(prev!=NULL){
-        if(current==NULL || current->thread_tcb->time_ran>nodeToInsert->thread_tcb->time_ran){
-          prev->next = nodeToInsert;
-          nodeToInsert->next = current;
-          //printQ(threadQ);
-          return;
-        }
-        prev=prev->next;
-        current=current->next;
-      }
-    }
-
-  }
-  else{
-    printf("Adding to FIFO, lets not deal with that yet \n");
-  }
-}
 void updateThreadPosition(queueNode* finishedThread){
   if(SCHED == MLFQ_SCHEDULER){
     if(multiQ == NULL){
       printf("Our sanity check failed in MLFQ update thread position.\n");
       exit(1);
     }
-    threadQueue* queueRan;
-    int queueNum=0;
-    if(finishedThread==multiQ->queue0->head)
-    {
-      queueRan=multiQ->queue0;
-      queueNum=0;
-    }
-    else if(finishedThread==multiQ->queue1->head)
-    {
-      queueRan=multiQ->queue1;
-      queueNum=1;
-    }
-    else if(finishedThread==multiQ->queue2->head)
-    {
-      queueRan=multiQ->queue2;
-      queueNum=2;
-    }
-    else if(finishedThread==multiQ->queue3->head)
-    {
-      queueRan=multiQ->queue3;
-      queueNum=3;
-    }
-    else{
-      printf("Failed sanity check in MLFQ: Finished thread was not any of the heads, exiting\n");
-      exit(1);
-    }
-    //Remove Thread from old queue
-    queueRan->head=queueRan->head->next;
-    //If priority stayed the same:
-    if(finishedThread->thread_tcb->priority==queueNum){
-      //printf("Thread stayed in priority %d\n",queueNum);
-      if(queueRan->head==NULL){
-        queueRan->head=finishedThread;
-      }
-      if(queueRan->tail!=NULL){
-        queueRan->tail->next=finishedThread;
-      }
-      queueRan->tail=finishedThread;
-      finishedThread->next=NULL;
-    }
+    removeFromMLFQ_NoFree(finishedThread);
+
     //if priority changed
-    else if(finishedThread->thread_tcb->priority==0){
+    if(finishedThread->thread_tcb->priority==0){
       if(multiQ->queue0->head==NULL){
         multiQ->queue0->head=finishedThread;
       }
@@ -1269,13 +1194,12 @@ void updateThreadPosition(queueNode* finishedThread){
     return;
   }
   else if(SCHED == STCF_SCHEDULER){
-    if(threadQ == NULL || threadQ->head == NULL || finishedThread!=threadQ->head){
+    if(threadQ == NULL || threadQ->head == NULL){
       printf("Our sanity check failed in STCF update thread position.\n");
       exit(1);
     }
     //remove from top of queue
-    threadQ->head = threadQ->head->next;
-
+    removeFromQueue_NoFree(finishedThread);
     //No other elements, or if finished thread is still shortest to completion, run it again
     if(threadQ->head==NULL || threadQ->head->thread_tcb->time_ran>=finishedThread->thread_tcb->time_ran){
       finishedThread->next = threadQ->head;
@@ -1323,6 +1247,9 @@ void updateThreadPosition(queueNode* finishedThread){
 //   //TODO: implement other types of returning next from Q's and multi level Q's
 //   return nextThread;
 // }
+queueNode* getRunningThread(){
+  return runningThread;
+}
 mutexNode *findMutex(int mutexId){// searches and returns mutex that has a matching mutexId
   ignoreSignal=1;
   mutexNode *mutexPtr = mutexList;
@@ -1347,5 +1274,7 @@ void freeTcb(tcb* tcb){
   //printf("Freed allocated stack for thread %d\n",tcb->threadId);
   free(tcb->context.uc_stack.ss_sp);
   free(tcb->return_context.uc_stack.ss_sp);
+
+  free(tcb);
   return;
 }

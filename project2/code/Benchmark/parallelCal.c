@@ -14,7 +14,7 @@
 #define C_SIZE 100000
 #define R_SIZE 10000
 
-pthread_mutex_t   mutex;
+pthread_mutex_t   mutex, mutex2;
 
 int thread_num;
 
@@ -33,11 +33,11 @@ void parallel_calculate(void* arg) {
 	int r=10;
 	for (j = n; j < R_SIZE; j += thread_num) {
 		for (i = 0; i < C_SIZE; ++i) {
-			//r = (rand() % (1000000000 + 1 - 1)) + 1;
+			r = (rand() % (100000000 + 1 - 1)) + 1;
 			pSum[j] += a[j][i] * i;
-			if(r==1){
+			if(r<=100){
 				printf("RANDOM YIELD because r is %d\n",r);
-				//my_pthread_yield();
+				my_pthread_yield();
 			}
 
 			//if (i % 100000 == 0)
@@ -46,14 +46,14 @@ void parallel_calculate(void* arg) {
 	}
 	for (j = n; j < R_SIZE; j += thread_num) {
 		 pthread_mutex_lock(&mutex);
+
 		 //printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
 		sum += pSum[j];
 		 //printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
 		 pthread_mutex_unlock(&mutex);
 	}
 	printf("finished function parallel calculate %d\n",(*(int*)arg+1));
-	 pthread_exit(69);
-
+	pthread_exit(69);
 
 }
 
@@ -110,6 +110,7 @@ int main(int argc, char **argv) {
 
 	// mutex init
 	pthread_mutex_init(&mutex, NULL);
+	pthread_mutex_init(&mutex2, NULL);
 
 	struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
@@ -121,7 +122,7 @@ int main(int argc, char **argv) {
 	printf("ABOUT TO JOIN\n");
 	int a=0;
 	for (i = 0; i < thread_num; ++i){
-		printf("JOINING ON (%d)\n", thread[i]);
+		printf("JOINING ON (%d)\n", i);
 		pthread_join(thread[i], &a);
 		printf("saved a to be: %d\n",a);
 	}
