@@ -1,7 +1,7 @@
 // File:	parallelCal.c
 // Author:	Yujie REN
 // Date:	09/23/2017
-#include <time.h>//added
+
 #include <stdio.h>
 #include <unistd.h>
 
@@ -14,7 +14,7 @@
 #define C_SIZE 100000
 #define R_SIZE 10000
 
-pthread_mutex_t   mutex, mutex2;
+pthread_mutex_t   mutex;
 
 int thread_num;
 
@@ -27,34 +27,21 @@ int  sum = 0;
 
 /* A CPU-bound task to do parallel array addition */
 void parallel_calculate(void* arg) {
-	printf("Starting Parallel Calculating %d\n ", (1+*(int*)arg));//delete
 	int i = 0, j = 0;
 	int n = *((int*) arg);
-	int r=10;
+
 	for (j = n; j < R_SIZE; j += thread_num) {
 		for (i = 0; i < C_SIZE; ++i) {
-			//r = (rand() % (100000000 + 1 - 1)) + 1;
 			pSum[j] += a[j][i] * i;
-			if(r<=3){
-				printf("RANDOM YIELD because r is %d\n",r);
-				my_pthread_yield();
-			}
-
 			//if (i % 100000 == 0)
 				//printf("test %d ...\n", n);
 		}
 	}
 	for (j = n; j < R_SIZE; j += thread_num) {
-		 pthread_mutex_lock(&mutex);
-
-		 //printf("Locked mutex from thread (%d)\n", (1+*(int*)arg));
+		pthread_mutex_lock(&mutex);
 		sum += pSum[j];
-		 //printf("Unlocking mutex from thread (%d)\n", (1+*(int*)arg));
-		 pthread_mutex_unlock(&mutex);
+		pthread_mutex_unlock(&mutex);
 	}
-	printf("finished function parallel calculate %d\n",(*(int*)arg+1));
-	pthread_exit(69);
-
 }
 
 /* verification function */
@@ -66,20 +53,17 @@ void verify() {
 	for (j = 0; j < R_SIZE; j += 1) {
 		for (i = 0; i < C_SIZE; ++i) {
 			pSum[j] += a[j][i] * i;
-			//printf("pSum is: %d\n",pSum[j]);
 		}
 	}
-	printf("\nverifying?\n");
-
 	for (j = 0; j < R_SIZE; j += 1) {
 		sum += pSum[j];
 	}
-	printf("\nverified sum is: %d\n", sum);
+	printf("verified sum is: %d\n", sum);
 }
 
 int main(int argc, char **argv) {
 	int i = 0, j = 0;
-
+	
 	if (argc == 1) {
 		thread_num = DEFAULT_THREAD_NUM;
 	} else {
@@ -110,7 +94,6 @@ int main(int argc, char **argv) {
 
 	// mutex init
 	pthread_mutex_init(&mutex, NULL);
-	pthread_mutex_init(&mutex2, NULL);
 
 	struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
@@ -119,33 +102,26 @@ int main(int argc, char **argv) {
 		pthread_create(&thread[i], NULL, &parallel_calculate, &counter[i]);
 
 	//my_pthread_schedule(0);
-	printf("ABOUT TO JOIN\n");
-	int a=0;
-	for (i = 0; i < thread_num; ++i){
-		printf("JOINING ON (%d)\n", i);
-		pthread_join(thread[i], &a);
-		printf("saved a to be: %d\n",a);
-	}
+
+	for (i = 0; i < thread_num; ++i)
+		pthread_join(thread[i], NULL);
 
 	clock_gettime(CLOCK_REALTIME, &end);
-    printf("running time: %lu milli-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
+    printf("running time: %lu micro-seconds\n", (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000);
 
 	printf("sum is: %d\n", sum);
 
 	// mutex destroy
-	 pthread_mutex_destroy(&mutex);
+	pthread_mutex_destroy(&mutex);
 
 	// feel free to verify your answer here:
 	verify();
 
 	// Free memory on Heap
-	// printf("\nfreeing thread array\n");
-	//  free(thread);
-	//  printf("\nfreeing counter\n");
-	//  free(counter);
-	//  printf("\nfreeing a[i]\n");
-	// for (i = 0; i < R_SIZE; ++i)
-	// 	free(a[i]);
-  printf("********Done everything!!!!!!!!!**********\n");
+	free(thread);
+	free(counter);
+	for (i = 0; i < R_SIZE; ++i)
+		free(a[i]);
+
 	return 0;
 }

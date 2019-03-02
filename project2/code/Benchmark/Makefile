@@ -13,4 +13,4 @@ externalCal:
 	$(CC) $(CFLAGS) -pthread -o externalCal externalCal.c -L../ -lmy_pthread
 
 clean:
-	rm -rf testcase parallelCal vectorMultiply externalCal *.o 
+	rm -rf testcase parallelCal vectorMultiply externalCal *.o ./record/
