@@ -425,10 +425,14 @@ int my_pthread_mutex_destroy(my_pthread_mutex_t *mutex) {
   //printf("yo I am gonna like totally destroy you (a mutex) now\n");
   ignoreSignal=1;
   mutexNode *mutexToDestroy = findMutex(mutex->mutexId);
-  if(mutexToDestroy==NULL || mutexToDestroy->mutex->isLocked==1){
+
+  if(mutexToDestroy==NULL){
     printf("Cannot destroy right now\n");
     ignoreSignal=0;
     return -1;
+  }
+  if(mutexToDestroy->mutex->isLocked==1){
+    my_pthread_mutex_unlock(mutex);
   }
   mutexNode *mutexPtr = mutexList;
   mutexNode *mutexPrev = mutexPtr;

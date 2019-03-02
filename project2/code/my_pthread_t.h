@@ -153,19 +153,20 @@ queueNode *getNextToRun();
 int removeFromQueueHelper(queueNode*);
 void removeFromQueue(queueNode*);
 void removeFromMLFQ(queueNode*);
+int removeFromQueueHelper(queueNode*);
 int removeFromQueueHelper_NoFree(queueNode*);
 queueNode* removeFromQueue_NoFree(queueNode*);
 void removeFromMLFQ_NoFree(queueNode*);
 void updateThreadPosition(queueNode*);
-void insertIntoQueue(queueNode* );
 
-
-void insertIntoBlocked(queueNode*);
 
 void start_timer(int);
 mutexNode *findMutex(int);
 void freeQueueNode(queueNode*);
 void freeTcb(tcb*);
+void printMLFQ();
+void printQ(threadQueue *queueToPrint);
+
 #ifdef USE_MY_PTHREAD
 #define pthread_t my_pthread_t
 #define pthread_mutex_t my_pthread_mutex_t
