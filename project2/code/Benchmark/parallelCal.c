@@ -33,9 +33,9 @@ void parallel_calculate(void* arg) {
 	int r=10;
 	for (j = n; j < R_SIZE; j += thread_num) {
 		for (i = 0; i < C_SIZE; ++i) {
-			r = (rand() % (100000000 + 1 - 1)) + 1;
+			//r = (rand() % (100000000 + 1 - 1)) + 1;
 			pSum[j] += a[j][i] * i;
-			if(r<=100){
+			if(r<=3){
 				printf("RANDOM YIELD because r is %d\n",r);
 				my_pthread_yield();
 			}

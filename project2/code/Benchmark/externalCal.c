@@ -54,8 +54,11 @@ void external_calculate(void* arg) {
 			for (j = 0; j < 4; ++j) {
 				fscanf(f, "%d", &mem[k*4 + j]);
 				pthread_mutex_lock(&mutex);
+				//printf("locked from thread %d\n",n+1);
 				sum += mem[k*4 + j];
+				//printf("unlocking from thread %d\n",n+1);
 				pthread_mutex_unlock(&mutex);
+
 			}
 		}
 		fclose(f);
