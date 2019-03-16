@@ -1,7 +1,8 @@
 #ifndef MY_VM_H_INCLUDED
 #define MY_VM_H_INCLUDED
 #include <stdbool.h>
-#include <stdlib.h> 
+#include <stdlib.h>
+#include <sys/mman.h>
 
 //Assume the address space is 32 bits, so the max memory size is 4GB
 //Page size is 4KB
