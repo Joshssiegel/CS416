@@ -15,7 +15,7 @@
 #define PGSIZE (4096)
 #define MAX_MEMSIZE (4*1024*1024*1024)
 #define MEMSIZE (2.0*1024*1024*1024)
-#define PAGETABLEENTRYSIZE (4)
+#define PAGETABLEENTRYSIZE (sizeof(pte_t))
 // #define TLB_SIZE
 
 typedef unsigned long pte_t;
@@ -23,6 +23,8 @@ typedef unsigned long pde_t;
 
 // unsigned short pageTableEntrySize = 4;
 char* physical_mem;
+unsigned int numDirEntries;
+unsigned int numTableEntries;
 int numPagesBits;
 int numOffsetBits;
 int numPageDirBits;
@@ -30,7 +32,7 @@ int numPageTableBits;
 unsigned int lower_bitmask;
 unsigned int middle_bitmask;
 unsigned int upper_bitmask;
-unsigned int* page_dir;
+pde_t* page_dir;
 
 struct tlb {
     //file this in. this structure will represent a tlb.
