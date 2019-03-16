@@ -1,7 +1,7 @@
 #ifndef MY_VM_H_INCLUDED
 #define MY_VM_H_INCLUDED
 #include <stdbool.h>
-#include <stdlib.h>
+#include <stdlib.h> 
 
 //Assume the address space is 32 bits, so the max memory size is 4GB
 //Page size is 4KB
@@ -11,11 +11,12 @@
 #define PGSIZE 4096
 #define MAX_MEMSIZE 4*1024*1024*1024
 #define MEMSIZE 1024*1024*1024
-// #define TLB_SIZE 
+// #define TLB_SIZE
 
 typedef unsigned long pte_t;
 typedef unsigned long pde_t;
 
+char* physical_mem;
 
 struct tlb {
     //file this in. this structure will represent a tlb.
