@@ -14,7 +14,7 @@
 
 #define PGSIZE (4096)
 #define MAX_MEMSIZE (4*1024*1024*1024)
-#define MEMSIZE (4.0*1024*1024*1024)
+#define MEMSIZE (2.0*1024*1024*1024)
 #define PAGETABLEENTRYSIZE (4)
 // #define TLB_SIZE
 
@@ -30,7 +30,7 @@ int numPageTableBits;
 unsigned int lower_bitmask;
 unsigned int middle_bitmask;
 unsigned int upper_bitmask;
-
+unsigned int* page_dir;
 
 struct tlb {
     //file this in. this structure will represent a tlb.
@@ -39,6 +39,8 @@ struct tlb {
 };
 
 struct tlb tlb_store;
+
+
 
 void set_physical_mem();
 pte_t* translate(pde_t *pgdir, void *va);

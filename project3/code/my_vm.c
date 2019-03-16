@@ -10,6 +10,10 @@ int log_2(int x){
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    if(physical_mem==-1){
+      printf("allocating memory failed\n");
+      exit(-1);
+    }
     //Calculate bits needed and create bitmasks needed for translation
     unsigned int num_pages=(MEMSIZE)/(PGSIZE);
     printf("numPages: %d\n",num_pages);
@@ -26,6 +30,8 @@ void set_physical_mem() {
     printf("lower bitmask: 0x%X\n",lower_bitmask);
     printf("middle bitmask: 0x%X\n",middle_bitmask);
     printf("upper bitmask: 0x%X\n",upper_bitmask);
+    //initialize page directory to point to 2^(numbits) entries
+    page_dir=(unsigned int*) malloc(pow(2,numPageDirBits)*PAGETABLEENTRYSIZE);
 
 }
 
@@ -55,14 +61,14 @@ pte_t * translate(pde_t *pgdir, void *va)
     int *addrOfPageTable = *addrOfPageDirEntry;
     int *addrOfPageTableEntry = addrOfPageTable + page_table_index*PAGETABLEENTRYSIZE;
     if(*addrOfPageDirEntry==0){
-      printf("table entry unallocated\n");
+      printf("table entry unallocated, exiting\n");
       return NULL;
     }
     int *physicalPageAddr = *addrOfPageTableEntry;
 
-    // return physicalPageAddr;
+    return physicalPageAddr;
 
-    return NULL;
+    //return NULL;
 }
 
 int page_map(pde_t *pgdir, void *va, void *pa)
@@ -70,6 +76,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     //walk the page directory to see if the virtual address is present or not
     //if not store the entry
     //you might have to reserve some extra space for page table if its not already allocated
+    
     return -1;
 }
 
@@ -106,7 +113,7 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
     set_physical_mem();
-    translate(NULL, physical_mem[0]);
+    //translate(NULL, physical_mem);
 
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
 }
