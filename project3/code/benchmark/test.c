@@ -18,7 +18,7 @@ int main() {
             put_value((void *)address_a, &x, sizeof(int));
             put_value((void *)address_b, &x, sizeof(int));
         }
-    } 
+    }
 
     printf("Storing this 5x5 matrix in the arrays\n");
     for (int i = 0; i < 5; i++) {
@@ -30,7 +30,7 @@ int main() {
             printf("%d ", y);
         }
         printf("\n");
-    } 
+    }
 
     printf("Performing the matrix multiplication with itself!\n");
     mat_mult(a, b, 5, c);
@@ -47,7 +47,7 @@ int main() {
     a_free(a, 100*4);
     a_free(b, 100*4);
     a_free(c, 100*4);
-    
+
     printf("Checking if the allocation was freed properly!\n");
     a = a_malloc(100*4);
     if ((int)a == old_a)
