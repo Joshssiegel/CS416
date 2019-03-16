@@ -1,6 +1,6 @@
 #include "my_vm.h"
 
-double log_2(double x){
+int log_2(int x){
   unsigned int ans = 0 ;
   while( x>>=1 ) {
     ans++;
@@ -12,8 +12,8 @@ void set_physical_mem() {
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
     //Calculate bits needed and create bitmasks needed for translation
     int num_pages=MEMSIZE/PGSIZE;
-    numPagesBits=log2(num_pages);
-    numOffsetBits = log2(PGSIZE);
+    numPagesBits=log_2(num_pages);
+    numOffsetBits = log_2(PGSIZE);
     numPageDirBits = numPagesBits/2; //Floor division
     numPageTableBits = numPagesBits - numPageDirBits;
     lower_bitmask= 2^(numOffsetBits)-1;
@@ -31,21 +31,19 @@ pte_t * translate(pde_t *pgdir, void *va)
     //physical address
 
     //page offset is taken from the LSB of the va
-    int page_offset = va&lower_bitmask;
+    int page_offset = ((int)va)&lower_bitmask;
     //get the index of the page table
-    int page_table_index = va&middle_bitmask >> PageOffsetBits;
+    int page_table_index = ((int)va)&middle_bitmask >> numOffsetBits;
     //get index of page directory;
-    int page_directory_index = va&upper_bitmask >> (NumOffsetBits+NumPageTableBits);
+    int page_directory_index = ((int)va)&upper_bitmask >> (numOffsetBits+numPageTableBits);
 
     // now we go into page dir, to get the page table for that entry
-    int *AddrOfPageDirEntry = pgdir + page_directory_index*PageTableEntrySize;
-    int *AddrOfPageTable = *AddrOfPageDirEntry;
-    int *AddrOfPageTableEntry = AddrOfPageTable + page_table_index*PageTableEntrySize;
-    int *PhysicalPageAddr = *AddrOfPageTableEntry;
-    int b = 1024;
-    double a = log2(b);
-    printf("!!!%d\n", a);
-    // return PhysicalPageAddr;
+    int *addrOfPageDirEntry = pgdir + page_directory_index*PAGETABLEENTRYSIZE;
+    int *addrOfPageTable = *addrOfPageDirEntry;
+    int *addrOfPageTableEntry = addrOfPageTable + page_table_index*PAGETABLEENTRYSIZE;
+    int *physicalPageAddr = *addrOfPageTableEntry;
+
+    // return physicalPageAddr;
 
     return NULL;
 }

@@ -15,12 +15,13 @@
 #define PGSIZE 4096
 #define MAX_MEMSIZE 4*1024*1024*1024
 #define MEMSIZE 1024*1024*1024
+#define PAGETABLEENTRYSIZE 4
 // #define TLB_SIZE
 
 typedef unsigned long pte_t;
 typedef unsigned long pde_t;
 
-unsigned short PageTableEntrySize = 4;
+// unsigned short pageTableEntrySize = 4;
 char* physical_mem;
 int numPagesBits;
 int numOffsetBits;
@@ -49,5 +50,5 @@ void a_free(void *va, int size);
 void put_value(void *va, void *val, int size);
 void get_value(void *va, void *val, int size);
 void mat_mult(void *mat1, void *mat2, int size, void *answer);
-double log_2(double x);
+int log_2(int x);
 #endif
