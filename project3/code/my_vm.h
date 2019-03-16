@@ -2,6 +2,8 @@
 #define MY_VM_H_INCLUDED
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
 #include <sys/mman.h>
 #include <math.h>
 
@@ -20,6 +22,14 @@ typedef unsigned long pde_t;
 
 unsigned short PageTableEntrySize = 4;
 char* physical_mem;
+int numPagesBits;
+int numOffsetBits;
+int numPageDirBits;
+int numPageTableBits;
+unsigned int lower_bitmask;
+unsigned int middle_bitmask;
+unsigned int upper_bitmask;
+
 
 struct tlb {
     //file this in. this structure will represent a tlb.
@@ -39,5 +49,5 @@ void a_free(void *va, int size);
 void put_value(void *va, void *val, int size);
 void get_value(void *va, void *val, int size);
 void mat_mult(void *mat1, void *mat2, int size, void *answer);
-
+double log_2(double x);
 #endif

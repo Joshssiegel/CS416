@@ -1,14 +1,29 @@
 #include "my_vm.h"
 
-
+double log_2(double x){
+  unsigned int ans = 0 ;
+  while( x>>=1 ) {
+    ans++;
+  }
+  return ans ;
+}
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    //Calculate bits needed and create bitmasks needed for translation
+    int num_pages=MEMSIZE/PGSIZE;
+    numPagesBits=log2(num_pages);
+    numOffsetBits = log2(PGSIZE);
+    numPageDirBits = numPagesBits/2; //Floor division
+    numPageTableBits = numPagesBits - numPageDirBits;
+    lower_bitmask= 2^(numOffsetBits)-1;
+    middle_bitmask= (2^(numPageTableBits)-1 )<<numOffsetBits;
+    upper_bitmask=(2^(numPageDirBits)-1 )<< (numOffsetBits+numPageTableBits);
+    printf("%b\n",lower_bitmask);
 
 }
 
-pte_t *
-translate(pde_t *pgdir, void *va)
+pte_t * translate(pde_t *pgdir, void *va)
 {
     //you are given a page directory pointer and a virtual address
     //walk the page directory to get the address of the second level page table
@@ -35,8 +50,7 @@ translate(pde_t *pgdir, void *va)
     return NULL;
 }
 
-int
-page_map(pde_t *pgdir, void *va, void *pa)
+int page_map(pde_t *pgdir, void *va, void *pa)
 {
     //walk the page directory to see if the virtual address is present or not
     //if not store the entry
