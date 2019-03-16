@@ -55,10 +55,6 @@ void get_value(void *va, void *val, int size) {
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
-<<<<<<< HEAD
-
-=======
     set_physical_mem();
->>>>>>> 0525e0f4e0f4da03377df16716742491b0b50976
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
 }
