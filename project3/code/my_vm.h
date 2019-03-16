@@ -53,4 +53,7 @@ void put_value(void *va, void *val, int size);
 void get_value(void *va, void *val, int size);
 void mat_mult(void *mat1, void *mat2, int size, void *answer);
 int log_2(int x);
+unsigned int getPageOffset(void* va);
+unsigned int getTableIndex(void* va);
+unsigned int getDirIndex(void* va);
 #endif
