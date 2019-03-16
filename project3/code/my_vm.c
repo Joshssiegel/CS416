@@ -7,6 +7,19 @@ int log_2(int x){
   }
   return ans ;
 }
+unsigned int getPageOffset(void* va){
+  unsigned int page_offset = ((int)va)&lower_bitmask;
+  return page_offset;
+}
+unsigned int getTableIndex(void* va){
+  unsigned int page_table_index = (((int)va)&middle_bitmask) >> numOffsetBits;
+  return page_table_index;
+}
+unsigned int getDirIndex(void* va){
+  unsigned int page_directory_index = (((int)va)&upper_bitmask) >> (numOffsetBits+numPageTableBits);
+  return page_directory_index;
+}
+
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -45,11 +58,11 @@ pte_t * translate(pde_t *pgdir, void *va)
     //physical address
 
     //page offset is taken from the LSB of the va
-    int page_offset = ((int)va)&lower_bitmask;
+    unsigned int page_offset = getPageOffset(va);
     //get the index of the page table
-    int page_table_index = (((int)va)&middle_bitmask) >> numOffsetBits;
+    unsigned int page_table_index = getTableIndex(va);
     //get index of page directory;
-    int page_directory_index = (((int)va)&upper_bitmask) >> (numOffsetBits+numPageTableBits);
+    unsigned int page_directory_index = getDirIndex(va);
     printf("virtual addr: 0x%X\n",va);
     printf("page_offset: 0x%X\n ",page_offset);
     printf("page_table_index: 0x%X\n ",page_table_index);
