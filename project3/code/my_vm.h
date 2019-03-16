@@ -12,10 +12,10 @@
 
 //Add any important includes here which you may need
 
-#define PGSIZE 4096
-#define MAX_MEMSIZE 4*1024*1024*1024
-#define MEMSIZE 1024*1024*1024
-#define PAGETABLEENTRYSIZE 4
+#define PGSIZE (4096)
+#define MAX_MEMSIZE (4*1024*1024*1024)
+#define MEMSIZE (4.0*1024*1024*1024)
+#define PAGETABLEENTRYSIZE (4)
 // #define TLB_SIZE
 
 typedef unsigned long pte_t;

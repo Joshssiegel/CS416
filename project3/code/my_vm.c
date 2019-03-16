@@ -11,15 +11,21 @@ void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
     //Calculate bits needed and create bitmasks needed for translation
-    int num_pages=MEMSIZE/PGSIZE;
-    numPagesBits=log_2(num_pages);
-    numOffsetBits = log_2(PGSIZE);
+    unsigned int num_pages=(MEMSIZE)/(PGSIZE);
+    printf("numPages: %d\n",num_pages);
+    numPagesBits=log2(num_pages);
+    numOffsetBits = log2(PGSIZE);
+    printf("numOffsetBits: %d\n",numOffsetBits);
     numPageDirBits = numPagesBits/2; //Floor division
     numPageTableBits = numPagesBits - numPageDirBits;
-    lower_bitmask= 2^(numOffsetBits)-1;
-    middle_bitmask= (2^(numPageTableBits)-1 )<<numOffsetBits;
-    upper_bitmask=(2^(numPageDirBits)-1 )<< (numOffsetBits+numPageTableBits);
-    printf("%b\n",lower_bitmask);
+    printf("numPageTableBits: %d\n",numPageTableBits);
+    printf("numPageDirBits: %d\n",numPageDirBits);
+    lower_bitmask= (int) pow(2,numOffsetBits)-1;
+    middle_bitmask= (int) (pow(2, numPageTableBits)-1 ) << numOffsetBits;
+    upper_bitmask=(int) (pow(2, numPageDirBits)-1 ) << (numOffsetBits+numPageTableBits);
+    printf("lower bitmask: 0x%X\n",lower_bitmask);
+    printf("middle bitmask: 0x%X\n",middle_bitmask);
+    printf("upper bitmask: 0x%X\n",upper_bitmask);
 
 }
 
@@ -33,14 +39,25 @@ pte_t * translate(pde_t *pgdir, void *va)
     //page offset is taken from the LSB of the va
     int page_offset = ((int)va)&lower_bitmask;
     //get the index of the page table
-    int page_table_index = ((int)va)&middle_bitmask >> numOffsetBits;
+    int page_table_index = (((int)va)&middle_bitmask) >> numOffsetBits;
     //get index of page directory;
-    int page_directory_index = ((int)va)&upper_bitmask >> (numOffsetBits+numPageTableBits);
-
+    int page_directory_index = (((int)va)&upper_bitmask) >> (numOffsetBits+numPageTableBits);
+    printf("virtual addr: 0x%X\n",va);
+    printf("page_offset: 0x%X\n ",page_offset);
+    printf("page_table_index: 0x%X\n ",page_table_index);
+    printf("page_dir_index: 0x%X\n ",page_directory_index);
     // now we go into page dir, to get the page table for that entry
     int *addrOfPageDirEntry = pgdir + page_directory_index*PAGETABLEENTRYSIZE;
+    if(*addrOfPageDirEntry==0){
+      printf("directory entry unallocated\n");
+      return NULL;
+    }
     int *addrOfPageTable = *addrOfPageDirEntry;
     int *addrOfPageTableEntry = addrOfPageTable + page_table_index*PAGETABLEENTRYSIZE;
+    if(*addrOfPageDirEntry==0){
+      printf("table entry unallocated\n");
+      return NULL;
+    }
     int *physicalPageAddr = *addrOfPageTableEntry;
 
     // return physicalPageAddr;
@@ -81,11 +98,15 @@ void get_value(void *va, void *val, int size) {
     //put the values pointed to by va inside the physical memory at given val address
     //assume you can access val address directly by derefencing them
     //always check first the presence of translation inside the tlb before proceeding forward
+
+    //for testing purpose:
 }
 
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
     set_physical_mem();
+    translate(NULL, physical_mem[0]);
+
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
 }
