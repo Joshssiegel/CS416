@@ -33,7 +33,7 @@ void set_physical_mem() {
     printf("middle bitmask: 0x%X\n",middle_bitmask);
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
-    page_dir=(unsigned int*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
+    page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
 
 }
 
@@ -88,7 +88,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==NULL){
       //create the page table;
-      pgdir[directory_index]=(unsigned int*) malloc(numTableEntries*PAGETABLEENTRYSIZE);
+      pgdir[directory_index]=(pte_t*) malloc(numTableEntries*PAGETABLEENTRYSIZE);
     }
     //get the beginning of the inner page table
     pte_t* page_table=pgdir[directory_index];
