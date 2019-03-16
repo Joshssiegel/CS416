@@ -1,5 +1,6 @@
 #include "my_vm.h"
 
+
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -13,6 +14,24 @@ translate(pde_t *pgdir, void *va)
     //walk the page directory to get the address of the second level page table
     //then use the second level page directory and offset in virtual address to return the
     //physical address
+
+    //page offset is taken from the LSB of the va
+    int page_offset = va&lower_bitmask;
+    //get the index of the page table
+    int page_table_index = va&middle_bitmask >> PageOffsetBits;
+    //get index of page directory;
+    int page_directory_index = va&upper_bitmask >> (NumOffsetBits+NumPageTableBits);
+
+    // now we go into page dir, to get the page table for that entry
+    int *AddrOfPageDirEntry = pgdir + page_directory_index*PageTableEntrySize;
+    int *AddrOfPageTable = *AddrOfPageDirEntry;
+    int *AddrOfPageTableEntry = AddrOfPageTable + page_table_index*PageTableEntrySize;
+    int *PhysicalPageAddr = *AddrOfPageTableEntry;
+    int b = 1024;
+    double a = log2(b);
+    printf("!!!%d\n", a);
+    // return PhysicalPageAddr;
+
     return NULL;
 }
 

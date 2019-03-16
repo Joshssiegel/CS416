@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <sys/mman.h>
+#include <math.h>
 
 //Assume the address space is 32 bits, so the max memory size is 4GB
 //Page size is 4KB
@@ -17,6 +18,7 @@
 typedef unsigned long pte_t;
 typedef unsigned long pde_t;
 
+unsigned short PageTableEntrySize = 4;
 char* physical_mem;
 
 struct tlb {
