@@ -24,6 +24,8 @@ void set_physical_mem() {
     numPageTableBits = numPagesBits - numPageDirBits;
     printf("numPageTableBits: %d\n",numPageTableBits);
     printf("numPageDirBits: %d\n",numPageDirBits);
+    numDirEntries=pow(2,numPageDirBits);
+    numTableEntries=pow(2,numPageTableBits);
     lower_bitmask= (int) pow(2,numOffsetBits)-1;
     middle_bitmask= (int) (pow(2, numPageTableBits)-1 ) << numOffsetBits;
     upper_bitmask=(int) (pow(2, numPageDirBits)-1 ) << (numOffsetBits+numPageTableBits);
@@ -31,7 +33,7 @@ void set_physical_mem() {
     printf("middle bitmask: 0x%X\n",middle_bitmask);
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
-    page_dir=(unsigned int*) malloc(pow(2,numPageDirBits)*PAGETABLEENTRYSIZE);
+    page_dir=(unsigned int*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
 
 }
 
@@ -76,7 +78,26 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     //walk the page directory to see if the virtual address is present or not
     //if not store the entry
     //you might have to reserve some extra space for page table if its not already allocated
-    
+    if(pgdir == NULL){
+      printf("page directory not set, returning -1\n");
+      return -1;
+    }
+    //extract the directory index from the address
+    unsigned int directory_index=getDirIndex(va);
+
+    //if the table at the index has not been initialized
+    if(pgdir[directory_index]==NULL){
+      //create the page table;
+      pgdir[directory_index]=(unsigned int*) malloc(numTableEntries*PAGETABLEENTRYSIZE);
+    }
+    //get the beginning of the inner page table
+    pte_t* page_table=pgdir[directory_index];
+    //get the index of the inner page table
+    unsigned int table_index=getTableIndex(va);
+    //if this page table entry isn't mapped to anything yet, map it to the physical addr
+    if(page_table[table_index]==NULL){
+      page_table[table_index]=pa;
+    }
     return -1;
 }
 
@@ -113,6 +134,10 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
     set_physical_mem();
+    int a=0;
+    if(a==NULL){
+      printf("NULL IS 0\n");
+    }
     //translate(NULL, physical_mem);
 
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
