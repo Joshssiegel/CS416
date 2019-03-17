@@ -104,10 +104,10 @@ pte_t * translate(pde_t *pgdir, void *va)
     unsigned int page_table_index = getTableIndex(va);
     //get index of page directory;
     unsigned int page_directory_index = getDirIndex(va);
-    printf("virtual addr: 0x%X\n",va);
-    printf("page_offset: 0x%X\n ",page_offset);
-    printf("page_table_index: 0x%X\n ",page_table_index);
-    printf("page_dir_index: 0x%X\n ",page_directory_index);
+    // printf("virtual addr: 0x%X\n",va);
+    // printf("page_offset: 0x%X\n ",page_offset);
+    // printf("page_table_index: 0x%X\n ",page_table_index);
+    // printf("page_dir_index: 0x%X\n ",page_directory_index);
     // now we go into page dir, to get the page table for that entry
     pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
     if(*addrOfPageDirEntry==0){
@@ -152,7 +152,39 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     if(page_table[table_index]==NULL){
       page_table[table_index]=pa;
     }
-    return -1;
+    return 0;
+}
+
+int page_unmap(pde_t *pgdir, void *va)
+{
+    //walk the page directory to see if the virtual address is present or not
+    //if not store the entry
+    //you might have to reserve some extra space for page table if its not already allocated
+    if(pgdir == NULL){
+      printf("page directory not set, returning -1\n");
+      return -1;
+    }
+    //extract the directory index from the address
+    unsigned int directory_index=getDirIndex(va);
+
+    //if the table at the index has not been initialized
+    if(pgdir[directory_index]==NULL){
+      //create the page table;
+      printf("!!! Can't unmap an unallocated memory address, returning -1\n");
+      return -1;
+    }
+    //get the beginning of the inner page table
+    pte_t* page_table=pgdir[directory_index];
+    //get the index of the inner page table
+    unsigned int table_index=getTableIndex(va);
+    //if this page table entry isn't mapped to anything yet, map it to the physical addr
+    if(page_table[table_index]==NULL){
+      printf("!!! Can't unmap an unallocated memory address, returning -1\n");
+      return -1;
+    }
+    page_table[table_index]=NULL;
+
+    return 0;
 }
 
 void* a_malloc(unsigned int num_bytes) {
@@ -182,6 +214,16 @@ void* a_malloc(unsigned int num_bytes) {
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = 0 + PGSIZE*INDEX_OF_ALLOCATED_PAGE
     void* va=PGSIZE*pageIndex;
+    //Physical Page to allocate
+    void* pa=physical_mem+PGSIZE*pageIndex;
+    for(i=0;i<pages_to_allocate;i++){
+      int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
+      if(status==-1){
+        printf("!!! Error mapping page. Returning NULL \n");
+        return NULL;
+      }
+      printf("Mapped VA: 0x%X to PA: 0x%X\n",va+PGSIZE*i, pa+PGSIZE*i);
+    }
     // Step 6) return virtual addr of first page in this contiguous block to user.
     return va;
 }
@@ -190,6 +232,44 @@ void a_free(void *va, int size) {
     //free the page table entries starting from this virtual address and uptill size
     //mark the pages which you recently free
     //only free if the memory from va till va+size is valid
+    pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
+    int counter=0;
+    printf("attempting to free\n");
+    do{
+      pa[counter]=translate(page_dir, va+PGSIZE*counter);
+      if(pa[counter]==NULL){
+        printf("!!! Virtual address: 0x%X was not allocated. Returning and not freeing.\n",va+PGSIZE*counter);
+        return;
+      }
+      counter+=1;
+      size-=PGSIZE;
+    }while(size>0);
+    printf("asking to free %d pages\n",counter);
+
+    int i=0;
+    int page_nums_to_free[counter];
+    for(i=0;i<counter;i++){
+      int offset=getPageOffset(va+i*PGSIZE);
+      page_nums_to_free[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
+      printf("page num to free:  %d\n",page_nums_to_free[i]);
+      if(testBit(page_nums_to_free[i])==0){
+        printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
+        return;
+      }
+    }
+    //We are guaranteed that there was a translation and that the pages were allocated
+    //Unmap the translations and mark them as unallocated in the bitmap
+    for(i=0;i<counter;i++){
+      int status=page_unmap(page_dir,va+i*PGSIZE);
+      if(status==-1){
+        printf("!!! Tried to unmap unallocated page. Returning\n");
+        return;
+      }
+      clearBit(page_nums_to_free[i]);
+    }
+
+
+
 }
 
 void put_value(void *va, void *val, int size) {
