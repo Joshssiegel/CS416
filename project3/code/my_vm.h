@@ -18,6 +18,8 @@
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
 // #define TLB_SIZE
 
+
+
 typedef unsigned long pte_t;
 typedef unsigned long pde_t;
 
@@ -33,6 +35,7 @@ unsigned int lower_bitmask;
 unsigned int middle_bitmask;
 unsigned int upper_bitmask;
 pde_t* page_dir;
+int* bitmap;
 
 struct tlb {
     //file this in. this structure will represent a tlb.
@@ -58,4 +61,7 @@ int log_2(int x);
 unsigned int getPageOffset(void* va);
 unsigned int getTableIndex(void* va);
 unsigned int getDirIndex(void* va);
+void setBit(int);
+void clearBit( int);
+int testBit( int);
 #endif
