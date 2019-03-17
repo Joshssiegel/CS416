@@ -8,7 +8,7 @@ int main() {
     void *c = a_malloc(100*4);
     int x = 1;
     int y, z;
-    printf("Addresses of the Allocations: %x, %x, %x\n", (int)a, (int)b, (int)c);
+    printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
 
     printf("Storing some integers in the array to make a 5x5 matrix\n");
     for (int i = 0; i < 5; i++) {

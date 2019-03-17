@@ -30,6 +30,9 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
       counter = 0;
     }
   }
+  if(counter>pagesToAllocate){
+    index = i - counter;
+  }
   return index;
 }
 
@@ -83,6 +86,7 @@ void set_physical_mem() {
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
     bitmap=(int*) calloc(numPages/32,sizeof(int));
+    printf("bitmap initialized\n");
 
 }
 
@@ -159,10 +163,12 @@ void* a_malloc(unsigned int num_bytes) {
     if(page_dir==NULL){
       set_physical_mem();
     }
+
     // Step 2) Convert num_bytes to allocate into numPages to allocate
-    unsigned int pages_to_allocate=num_bytes/PGSIZE;
+    unsigned int pages_to_allocate=(num_bytes/PGSIZE)>0? (num_bytes/PGSIZE) : 1;
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
+
     if(pageIndex==-1){
       printf("No space to allocate. Returning NULL\n");
       return NULL;
@@ -203,14 +209,14 @@ void get_value(void *va, void *val, int size) {
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
-    set_physical_mem();
-    int i=0;
-    setBit(0);
-    setBit(31);
-    setBit(1024);
-    printf("bitmap first val is: 0x%X\n",bitmap[0]);
-    printf("Testing bit 1023: 0x%X\n", testBit(1024));
-
+    // set_physical_mem();
+    // int i=0;
+    // setBit(0);
+    // setBit(31);
+    // setBit(1024);
+    // printf("bitmap first val is: 0x%X\n",bitmap[0]);
+    // printf("Testing bit 1023: 0x%X\n", testBit(1024));
+    //
 
 
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
