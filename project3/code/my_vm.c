@@ -37,9 +37,9 @@ void set_physical_mem() {
       exit(-1);
     }
     //Calculate bits needed and create bitmasks needed for translation
-    unsigned int num_pages=(MEMSIZE)/(PGSIZE);
-    printf("numPages: %d\n",num_pages);
-    numPagesBits=log2(num_pages);
+    numPages=(MEMSIZE)/(PGSIZE);
+    printf("numPages: %d\n",numPages);
+    numPagesBits=log2(numPages);
     numOffsetBits = log2(PGSIZE);
     printf("numOffsetBits: %d\n",numOffsetBits);
     numPageDirBits = numPagesBits/2; //Floor division
@@ -56,7 +56,7 @@ void set_physical_mem() {
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
-    bitmap=(int*) calloc(num_pages/32,sizeof(int));
+    bitmap=(int*) calloc(numPages/32,sizeof(int));
 
 }
 
@@ -129,10 +129,28 @@ void* a_malloc(unsigned int num_bytes) {
     //continuous virtual address.
     //you will have to store the page table entries
     //you will also have to mark which physical pages have been used
+    // Step 1) Check if page directory has been initialized, if not, call set_physical_mem()
     if(page_dir==NULL){
       set_physical_mem();
     }
-    return NULL;
+    // Step 2) Convert num_bytes to allocate into numPages to allocate
+    unsigned int pages_to_allocate=num_bytes/PGSIZE;
+    // Step 3) Get Shortest Continuous Memory Region
+    int pageIndex=getOptimalVacantPages(pages_to_allocate);
+    if(pageIndex==-1){
+      printf("No space to allocate. Returning NULL\n");
+      return NULL;
+    }
+    // Step 4) Allocate pages found by setting their value to “1” in the bitmap.
+    int i=0;
+    for(i=0;i<pages_to_allocate;i++){
+      setBit(pageIndex+i);
+    }
+    // Step 5) Choose the virtual addr and map it to the physical pages.
+    //Virtual address = 0 + PGSIZE*INDEX_OF_ALLOCATED_PAGE
+    void* va=PGSIZE*pageIndex;
+    // Step 6) return virtual addr of first page in this contiguous block to user.
+    return va;
 }
 
 void a_free(void *va, int size) {

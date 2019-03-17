@@ -25,6 +25,7 @@ typedef unsigned long pde_t;
 
 // unsigned short pageTableEntrySize = 4;
 char* physical_mem;
+unsigned int numPages;
 unsigned int numDirEntries;
 unsigned int numTableEntries;
 int numPagesBits;
