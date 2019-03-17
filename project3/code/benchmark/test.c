@@ -2,10 +2,10 @@
 
 int main() {
     printf("Allocating Three arrays of 400 bytes\n");
-    void *a = a_malloc(100*4);
+    void *a = a_malloc(1024*1024*1024-4096);
     int old_a = (int)a;
-    void *b = a_malloc(100*4);
-    void *c = a_malloc(100*4);
+    void *b = a_malloc(1024*1024*1024-4096);
+    void *c = a_malloc(1);
     int x = 1;
     int y, z;
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);

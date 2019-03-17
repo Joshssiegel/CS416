@@ -11,7 +11,7 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
   // bitmap
   int i = 0;
   int counter = 0;
-  int leastRegionFound = numPages;
+  int leastRegionFound = numPages+1;
   int index = -1;
 
   for(i=0; i<numPages; i++){
@@ -23,14 +23,14 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
         index = i - counter;//FOUND OPTIMAL SPOT
         return index;
       }
-      if(counter>pagesToAllocate && counter<=leastRegionFound){
+      if(counter>=pagesToAllocate && counter<leastRegionFound){
         leastRegionFound = counter;
         index = i - counter;
       }
       counter = 0;
     }
   }
-  if(counter>pagesToAllocate){
+  if(counter>=pagesToAllocate && counter<leastRegionFound){
     index = i - counter;
   }
   return index;
@@ -85,8 +85,9 @@ void set_physical_mem() {
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
-    bitmap=(int*) calloc(numPages/32,sizeof(int));
-    printf("bitmap initialized\n");
+    int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
+    bitmap=(int*) calloc(numEntriesInBitmap,sizeof(int));
+    printf("bitmap initialized to size: %d\n", (numPages/32));
 
 }
 
@@ -165,7 +166,7 @@ void* a_malloc(unsigned int num_bytes) {
     }
 
     // Step 2) Convert num_bytes to allocate into numPages to allocate
-    unsigned int pages_to_allocate=(num_bytes/PGSIZE)>0? (num_bytes/PGSIZE) : 1;
+    unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
 
