@@ -277,6 +277,18 @@ void put_value(void *va, void *val, int size) {
     //assume you can access val address directly by derefencing it
     //Also, it has the capability to put values inside the tlb
     //just implement a simple first in first out scheme for value eviction
+    char* val_ptr=(char*)val;
+    //ASSUMING NO TLB:
+    // Translate VA to PA by calling translate function
+    pte_t* pa=translate(page_dir,va);
+    //printf("storing %d at 0x%X\n",*(int*)val,pa);
+    // For i: 0 to Size
+    int i=0;
+    for(i=0;i<size;i++){
+      // *(PA+i)=*(Val+i)
+      *(pa+i)=*(val_ptr+i);
+    }
+
 }
 
 void get_value(void *va, void *val, int size) {
@@ -285,20 +297,45 @@ void get_value(void *va, void *val, int size) {
     //always check first the presence of translation inside the tlb before proceeding forward
 
     //for testing purpose:
+    char* val_ptr=(char*)val;
+    //ASSUMING NO TLB:
+    // Translate VA to PA by calling translate function
+    pte_t* pa=translate(page_dir,va);
+    //printf("getting %d at 0x%X\n",*(int*)pa, pa);
+    char* pa_ptr=(char*)pa;
+    // For i: 0 to Size
+    int i=0;
+    for(i=0;i<size;i++){
+      // *(Val+i)=*(PA+i)
+      *(val_ptr+i)=*(pa_ptr+i);
+    }
 }
 
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
-    // set_physical_mem();
-    // int i=0;
-    // setBit(0);
-    // setBit(31);
-    // setBit(1024);
-    // printf("bitmap first val is: 0x%X\n",bitmap[0]);
-    // printf("Testing bit 1023: 0x%X\n", testBit(1024));
-    //
+    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
+    int *mat1_ptr = (int*)mat1;
+    int *mat2_ptr = (int*)mat2;
+    int *answer_ptr = (int*)answer;
+    int ans=0;
+    int i=0,j=0,k=0;
+    printf("multiplying matrices!\n");
+    for(i=0;i<size;i++){
+      for(j=0;j<size;j++){
+        for(k=0;k<size;k++){
+          int mat1_val=0,mat2_val=0, old_answer_val=0;
+          get_value(mat1+(i*size+k)*sizeof(int),&mat1_val,sizeof(int));
+          get_value(mat2+(k*size+j)*sizeof(int),&mat2_val,sizeof(int));
+          //printf("mat1+(i*size+k)*sizeof(int): 0x%X \nmat2+(k*size+j)*sizeof(int): 0x%x \n",mat1+(i*size+k)*sizeof(int),mat2+(k*size+j)*sizeof(int));
+          // printf("i: %d j: %d k: %d\n",i,j,k);
+          // printf("Mat 1 val is: %d and Mat 2 val is: %d\n",mat1_val, mat2_val);
+          ans+=mat1_val*mat2_val;
+        }
+        printf("ans is: %d\n",ans);
+        put_value(answer+(i*size+j)*sizeof(int), &ans,sizeof(int));
+        ans=0;
+      }
 
-
-   //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
+    }
 }
