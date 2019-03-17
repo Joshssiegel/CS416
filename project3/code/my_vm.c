@@ -79,7 +79,7 @@ pte_t * translate(pde_t *pgdir, void *va)
       printf("table entry unallocated, exiting\n");
       return NULL;
     }
-    int *physicalPageAddr = *addrOfPageTableEntry;
+    pte_t *physicalPageAddr = *addrOfPageTableEntry;
 
     return physicalPageAddr;
 
