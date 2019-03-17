@@ -7,6 +7,32 @@ int log_2(int x){
   }
   return ans ;
 }
+int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
+  // bitmap
+  int i = 0;
+  int counter = 0;
+  int leastRegionFound = numPages;
+  int index = -1;
+
+  for(i=0; i<numPages; i++){
+    if(testBit(i)==0){ // not set
+      counter++;
+    }
+    else{
+      if(counter == pagesToAllocate){
+        index = i - counter;//FOUND OPTIMAL SPOT
+        return index;
+      }
+      if(counter>pagesToAllocate && counter<=leastRegionFound){
+        leastRegionFound = counter;
+        index = i - counter;
+      }
+      counter = 0;
+    }
+  }
+  return index;
+}
+
 void setBit(int bit){
   bitmap[(bit/32)] |= (1 << (bit%32));
 }
@@ -14,7 +40,7 @@ void clearBit(int bit){
   bitmap[(bit/32)] &= ~(1 << (bit%32));
 }
 int testBit(int bit){
-  return bitmap[(bit/32)] & (1 << (bit%32));
+  return ( (bitmap[bit/32] & (1 << (bit%32) )) != 0 );
 }
 unsigned int getPageOffset(void* va){
   unsigned int page_offset = ((int)va)&lower_bitmask;
