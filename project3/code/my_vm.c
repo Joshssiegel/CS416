@@ -7,6 +7,15 @@ int log_2(int x){
   }
   return ans ;
 }
+void setBit(int bit){
+  bitmap[(bit/32)] |= (1 << (bit%32));
+}
+void clearBit(int bit){
+  bitmap[(bit/32)] &= ~(1 << (bit%32));
+}
+int testBit(int bit){
+  return bitmap[(bit/32)] & (1 << (bit%32));
+}
 unsigned int getPageOffset(void* va){
   unsigned int page_offset = ((int)va)&lower_bitmask;
   return page_offset;
@@ -47,6 +56,7 @@ void set_physical_mem() {
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
+    bitmap=(int*) calloc(num_pages/32,sizeof(int));
 
 }
 
@@ -68,18 +78,18 @@ pte_t * translate(pde_t *pgdir, void *va)
     printf("page_table_index: 0x%X\n ",page_table_index);
     printf("page_dir_index: 0x%X\n ",page_directory_index);
     // now we go into page dir, to get the page table for that entry
-    int *addrOfPageDirEntry = pgdir + page_directory_index*PAGETABLEENTRYSIZE;
+    pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
     if(*addrOfPageDirEntry==0){
-      printf("directory entry unallocated\n");
+      printf("directory entry unallocated, returning NULL\n");
       return NULL;
     }
-    int *addrOfPageTable = *addrOfPageDirEntry;
-    int *addrOfPageTableEntry = addrOfPageTable + page_table_index*PAGETABLEENTRYSIZE;
+    pte_t *addrOfPageTable = *addrOfPageDirEntry;
+    pte_t *addrOfPageTableEntry = addrOfPageTable + page_table_index;
     if(*addrOfPageDirEntry==0){
       printf("table entry unallocated, exiting\n");
       return NULL;
     }
-    int *physicalPageAddr = *addrOfPageTableEntry;
+    pte_t *physicalPageAddr = *addrOfPageTableEntry + page_offset;
 
     return physicalPageAddr;
 
@@ -114,11 +124,14 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     return -1;
 }
 
-void *a_malloc(unsigned int num_bytes) {
+void* a_malloc(unsigned int num_bytes) {
     //you will allocate the pages required to store the given number of bytes as
     //continuous virtual address.
     //you will have to store the page table entries
     //you will also have to mark which physical pages have been used
+    if(page_dir==NULL){
+      set_physical_mem();
+    }
     return NULL;
 }
 
@@ -147,11 +160,14 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
     //given two arrays of length: size * size
     //multiply them as matrices and store the computed result in answer
     set_physical_mem();
-    int a=0;
-    if(a==NULL){
-      printf("NULL IS 0\n");
-    }
-    //translate(NULL, physical_mem);
+    int i=0;
+    setBit(0);
+    setBit(31);
+    setBit(1024);
+    printf("bitmap first val is: 0x%X\n",bitmap[0]);
+    printf("Testing bit 1023: 0x%X\n", testBit(1024));
+
+
 
    //Hint: You will do indexing as [i * size + j] where i, j are the indices of matrix being accessed
 }
