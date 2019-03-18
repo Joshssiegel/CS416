@@ -255,7 +255,6 @@ void a_free(void *va, int size) {
       if(testBit(page_nums_to_free[i])==0){
         printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
         pthread_mutex_unlock(&lock);
-
         return;
       }
     }
@@ -303,7 +302,6 @@ void get_value(void *va, void *val, int size) {
     // Translate VA to PA by calling translate function
     pte_t* pa=translate(page_dir,va);
     pthread_mutex_lock(&lock);
-    //printf("getting %d at 0x%X\n",*(int*)pa, pa);
     char* pa_ptr=(char*)pa;
     // For i: 0 to Size
     int i=0;

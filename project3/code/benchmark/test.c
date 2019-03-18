@@ -10,22 +10,23 @@ int main() {
     int x = 1;
     int y, z;
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
-
-    printf("Storing some integers in the array to make a 5x5 matrix\n");
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
-            int address_a = (unsigned int)a + ((i * 5 * sizeof(int))) + (j * sizeof(int));
-            int address_b = (unsigned int)b + ((i * 5 * sizeof(int))) + (j * sizeof(int));
+    int mat_size = 3;
+    printf("Storing some integers in the array to make a mat_sizexmat_size matrix\n");
+    for (int i = 0; i < mat_size; i++) {
+        for (int j = 0; j < mat_size; j++) {
+            int address_a = (unsigned int)a + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
+            int address_b = (unsigned int)b + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
             put_value((void *)address_a, &x, sizeof(int));
             put_value((void *)address_b, &x, sizeof(int));
+            x=x+1;
         }
     }
 
-    printf("Storing this 5x5 matrix in the arrays\n");
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
-            int address_a = (unsigned int)a + ((i * 5 * sizeof(int))) + (j * sizeof(int));
-            int address_b = (unsigned int)b + ((i * 5 * sizeof(int))) + (j * sizeof(int));
+    printf("Storing this mat_sizexmat_size matrix in the arrays\n");
+    for (int i = 0; i < mat_size; i++) {
+        for (int j = 0; j < mat_size; j++) {
+            int address_a = (unsigned int)a + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
+            int address_b = (unsigned int)b + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
             get_value((void *)address_a, &y, sizeof(int));
             get_value( (void *)address_b, &z, sizeof(int));
             printf("%d ", y);
@@ -34,11 +35,11 @@ int main() {
     }
 
     printf("Performing the matrix multiplication with itself!\n");
-    mat_mult(a, b, 5, c);
+    mat_mult(a, b, mat_size, c);
 
-    for (int i = 0; i < 5; i++) {
-        for (int j = 0; j < 5; j++) {
-            int address_c = (unsigned int)c + ((i * 5 * sizeof(int))) + (j * sizeof(int));
+    for (int i = 0; i < mat_size; i++) {
+        for (int j = 0; j < mat_size; j++) {
+            int address_c = (unsigned int)c + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
             get_value((void *)address_c, &y, sizeof(int));
             printf("%d ", y);
         }
@@ -67,5 +68,5 @@ int main() {
     void *more_addr4 = a_malloc(4096*1);
     void *more_addr5 = a_malloc(4096*1);
     a_free(more_addr5, 50000);
-    void *more_addr6 = a_malloc(4096*13+1);
+    void *more_addr6 = a_malloc(4096*13);
 }
