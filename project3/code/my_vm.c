@@ -67,28 +67,19 @@ void set_physical_mem() {
     }
     //Calculate bits needed and create bitmasks needed for translation
     numPages=(MEMSIZE)/(PGSIZE);
-    printf("numPages: %d\n",numPages);
     numPagesBits=log2(numPages);
     numOffsetBits = log2(PGSIZE);
-    printf("numOffsetBits: %d\n",numOffsetBits);
     numPageDirBits = numPagesBits/2; //Floor division
     numPageTableBits = numPagesBits - numPageDirBits;
-    printf("numPageTableBits: %d\n",numPageTableBits);
-    printf("numPageDirBits: %d\n",numPageDirBits);
     numDirEntries=pow(2,numPageDirBits);
     numTableEntries=pow(2,numPageTableBits);
     lower_bitmask= (int) pow(2,numOffsetBits)-1;
     middle_bitmask= (int) (pow(2, numPageTableBits)-1 ) << numOffsetBits;
     upper_bitmask=(int) (pow(2, numPageDirBits)-1 ) << (numOffsetBits+numPageTableBits);
-    printf("lower bitmask: 0x%X\n",lower_bitmask);
-    printf("middle bitmask: 0x%X\n",middle_bitmask);
-    printf("upper bitmask: 0x%X\n",upper_bitmask);
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
     int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
     bitmap=(int*) calloc(numEntriesInBitmap,sizeof(int));
-    printf("bitmap initialized to size: %d\n", (numPages/32));
-
 }
 
 pte_t * translate(pde_t *pgdir, void *va)
@@ -104,11 +95,6 @@ pte_t * translate(pde_t *pgdir, void *va)
     unsigned int page_table_index = getTableIndex(va);
     //get index of page directory;
     unsigned int page_directory_index = getDirIndex(va);
-    // printf("virtual addr: 0x%X\n",va);
-    // printf("page_offset: 0x%X\n ",page_offset);
-    // printf("page_table_index: 0x%X\n ",page_table_index);
-    // printf("page_dir_index: 0x%X\n ",page_directory_index);
-    // now we go into page dir, to get the page table for that entry
     pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
     if(*addrOfPageDirEntry==0){
       printf("directory entry unallocated, returning NULL\n");
@@ -121,10 +107,7 @@ pte_t * translate(pde_t *pgdir, void *va)
       return NULL;
     }
     pte_t *physicalPageAddr = *addrOfPageTableEntry + page_offset;
-
     return physicalPageAddr;
-
-    //return NULL;
 }
 
 int page_map(pde_t *pgdir, void *va, void *pa)
@@ -138,7 +121,6 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     }
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
-
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==NULL){
       //create the page table;
@@ -196,12 +178,10 @@ void* a_malloc(unsigned int num_bytes) {
     if(page_dir==NULL){
       set_physical_mem();
     }
-
     // Step 2) Convert num_bytes to allocate into numPages to allocate
     unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
-
     if(pageIndex==-1){
       printf("No space to allocate. Returning NULL\n");
       return NULL;
@@ -222,7 +202,6 @@ void* a_malloc(unsigned int num_bytes) {
         printf("!!! Error mapping page. Returning NULL \n");
         return NULL;
       }
-      printf("Mapped VA: 0x%X to PA: 0x%X\n",va+PGSIZE*i, pa+PGSIZE*i);
     }
     // Step 6) return virtual addr of first page in this contiguous block to user.
     return va;
@@ -234,7 +213,6 @@ void a_free(void *va, int size) {
     //only free if the memory from va till va+size is valid
     pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
     int counter=0;
-    printf("attempting to free\n");
     do{
       pa[counter]=translate(page_dir, va+PGSIZE*counter);
       if(pa[counter]==NULL){
@@ -244,14 +222,12 @@ void a_free(void *va, int size) {
       counter+=1;
       size-=PGSIZE;
     }while(size>0);
-    printf("asking to free %d pages\n",counter);
 
     int i=0;
     int page_nums_to_free[counter];
     for(i=0;i<counter;i++){
       int offset=getPageOffset(va+i*PGSIZE);
       page_nums_to_free[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
-      printf("page num to free:  %d\n",page_nums_to_free[i]);
       if(testBit(page_nums_to_free[i])==0){
         printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
         return;
@@ -281,11 +257,9 @@ void put_value(void *va, void *val, int size) {
     //ASSUMING NO TLB:
     // Translate VA to PA by calling translate function
     pte_t* pa=translate(page_dir,va);
-    //printf("storing %d at 0x%X\n",*(int*)val,pa);
     // For i: 0 to Size
     int i=0;
     for(i=0;i<size;i++){
-      // *(PA+i)=*(Val+i)
       *(pa+i)=*(val_ptr+i);
     }
 
@@ -295,18 +269,15 @@ void get_value(void *va, void *val, int size) {
     //put the values pointed to by va inside the physical memory at given val address
     //assume you can access val address directly by derefencing them
     //always check first the presence of translation inside the tlb before proceeding forward
-
     //for testing purpose:
     char* val_ptr=(char*)val;
     //ASSUMING NO TLB:
     // Translate VA to PA by calling translate function
     pte_t* pa=translate(page_dir,va);
-    //printf("getting %d at 0x%X\n",*(int*)pa, pa);
     char* pa_ptr=(char*)pa;
     // For i: 0 to Size
     int i=0;
     for(i=0;i<size;i++){
-      // *(Val+i)=*(PA+i)
       *(val_ptr+i)=*(pa_ptr+i);
     }
 }
@@ -327,12 +298,8 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
           int mat1_val=0,mat2_val=0, old_answer_val=0;
           get_value(mat1+(i*size+k)*sizeof(int),&mat1_val,sizeof(int));
           get_value(mat2+(k*size+j)*sizeof(int),&mat2_val,sizeof(int));
-          //printf("mat1+(i*size+k)*sizeof(int): 0x%X \nmat2+(k*size+j)*sizeof(int): 0x%x \n",mat1+(i*size+k)*sizeof(int),mat2+(k*size+j)*sizeof(int));
-          // printf("i: %d j: %d k: %d\n",i,j,k);
-          // printf("Mat 1 val is: %d and Mat 2 val is: %d\n",mat1_val, mat2_val);
           ans+=mat1_val*mat2_val;
         }
-        printf("ans is: %d\n",ans);
         put_value(answer+(i*size+j)*sizeof(int), &ans,sizeof(int));
         ans=0;
       }

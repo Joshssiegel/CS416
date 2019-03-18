@@ -55,5 +55,17 @@ int main() {
         printf("The allocation free works\n");
     else
         printf("The allocation free does not work\n");
+    a_free(a, 4*100);
 
+    void *addr = a_malloc(1024*1024*1024*2.0); // allocating 2 gigs
+    a_free(addr+4096*2, 4096*3);
+    a_free(addr+4096*10, 4096*5);
+
+    void *more_addr1 = a_malloc(4096*2);
+    void *more_addr2 = a_malloc(4096*2);
+    void *more_addr3 = a_malloc(4096*2);
+    void *more_addr4 = a_malloc(4096*1);
+    void *more_addr5 = a_malloc(4096*1);
+    a_free(more_addr5, 50000);
+    void *more_addr6 = a_malloc(4096*13+1);
 }
