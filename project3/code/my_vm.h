@@ -16,7 +16,7 @@
 #define MAX_MEMSIZE (4*1024*1024*1024)
 #define MEMSIZE (2.0*1024*1024*1024)
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
-// #define TLB_SIZE
+#define TLB_SIZE 16   //number of TLB entries
 
 
 
@@ -28,23 +28,31 @@ char* physical_mem;
 unsigned int numPages;
 unsigned int numDirEntries;
 unsigned int numTableEntries;
+int numTotalBits;
 int numPagesBits;
 int numOffsetBits;
 int numPageDirBits;
 int numPageTableBits;
+int numTLBBits;
 unsigned int lower_bitmask;
 unsigned int middle_bitmask;
 unsigned int upper_bitmask;
+unsigned int tlb_bitmask;
 pde_t* page_dir;
 int* bitmap;
 
 struct tlb {
-    //file this in. this structure will represent a tlb.
-    //assume it is a direct mapped TLB of TBL_SIZE (buckets)
+    //fill this in. this structure will represent a tlb.
+    //assume it is a direct mapped TLB of TLB_SIZE (buckets)
     //assume each bucket to be 4 bytes
+    pte_t* translations;
+    int* virtual_tags;
+    double hits;
+    double misses;
+
 };
 
-struct tlb tlb_store;
+struct tlb* tlb_store;
 
 
 
@@ -64,6 +72,9 @@ int log_2(int x);
 unsigned int getPageOffset(void* va);
 unsigned int getTableIndex(void* va);
 unsigned int getDirIndex(void* va);
+unsigned int getTLBIndex(void* va);
+pte_t* searchTLB(pte_t* va);
+int checkAllocated(void *va, int size);
 void setBit(int);
 void clearBit( int);
 int testBit( int);

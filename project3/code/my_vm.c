@@ -8,6 +8,40 @@ int log_2(int x){
   }
   return ans ;
 }
+int checkAllocated(void *va, int size){
+  int counter=0;
+  pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
+
+  //count pages
+  do{
+    pa[counter]=translate(page_dir, va+PGSIZE*counter);
+    if(pa[counter]==NULL){
+      printf("!!! Virtual address: 0x%X was not allocated.\n",va+PGSIZE*counter);
+      free(pa);
+      return -1;
+    }
+    counter+=1;
+    size-=PGSIZE;
+  }while(size>0);
+  pthread_mutex_lock(&lock);
+  int i=0;
+  int pageNums[counter];
+  for(i=0;i<counter;i++){
+    int offset=getPageOffset(va+i*PGSIZE);
+    //printf("difference from base%d\n",(int)pa[i]);
+    pageNums[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
+    //printf("testing page number: %d\n",pageNums[i]);
+    if(testBit(pageNums[i])==0){
+      printf("!!! Page %d was not allocated.\n", pageNums[i]);
+      pthread_mutex_unlock(&lock);
+      free(pa);
+      return-1;
+    }
+  }
+  free(pa);
+  pthread_mutex_unlock(&lock);
+  return 0;
+}
 int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
   // bitmap
   int i = 0;
@@ -59,6 +93,11 @@ unsigned int getDirIndex(void* va){
   return page_directory_index;
 }
 
+unsigned int getTLBIndex(void* va){
+  unsigned int tlb_index = (((int)va)&tlb_bitmask) >> (numOffsetBits);
+  return tlb_index;
+}
+
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -67,18 +106,22 @@ void set_physical_mem() {
       exit(-1);
     }
     //Calculate bits needed and create bitmasks needed for translation
+    numTotalBits=log2(MEMSIZE);
     numPages=(MEMSIZE)/(PGSIZE);
     numPagesBits=log2(numPages);
     numOffsetBits = log2(PGSIZE);
     numPageDirBits = numPagesBits/2; //Floor division
     numPageTableBits = numPagesBits - numPageDirBits;
+    numTLBBits= log2(TLB_SIZE);
     numDirEntries=pow(2,numPageDirBits);
     numTableEntries=pow(2,numPageTableBits);
     lower_bitmask= (int) pow(2,numOffsetBits)-1;
     middle_bitmask= (int) (pow(2, numPageTableBits)-1 ) << numOffsetBits;
     upper_bitmask=(int) (pow(2, numPageDirBits)-1 ) << (numOffsetBits+numPageTableBits);
+    tlb_bitmask=(int) (pow(2,numTLBBits)-1)<<(numOffsetBits);
+    printf("tlb bitmask: 0x%X\n",tlb_bitmask);
     //initialize page directory to point to 2^(numbits) entries
-    page_dir=(pde_t*) malloc(numDirEntries*PAGETABLEENTRYSIZE);
+    page_dir=(pde_t*) calloc(numDirEntries,PAGETABLEENTRYSIZE);
     int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
     bitmap=(int*) calloc(numEntriesInBitmap,sizeof(int));
     printf("bitmap initialized to size: %d\n", (numPages/32));
@@ -86,6 +129,16 @@ void set_physical_mem() {
     {
         printf("!!! Failed to initialize mutex\n");
         return;
+    }
+    //initialize TLB
+    tlb_store=(struct tlb*) malloc(sizeof(struct tlb));
+    tlb_store->translations=(pte_t*) calloc(TLB_SIZE,sizeof(pte_t));
+    tlb_store->virtual_tags=(int*) malloc(TLB_SIZE*sizeof(int));
+    tlb_store->hits=0;
+    tlb_store->misses=0;
+    int i=0;
+    for (i=0;i<TLB_SIZE;i++){
+      tlb_store->virtual_tags[i]=-1;
     }
 
 }
@@ -102,16 +155,19 @@ pte_t * translate(pde_t *pgdir, void *va)
     unsigned int page_table_index = getTableIndex(va);
     //get index of page directory;
     unsigned int page_directory_index = getDirIndex(va);
+    // printf("page offset: 0x%X\n",page_offset);
+    // printf("page table index: 0x%X\n",page_table_index);
+    // printf("page directory index: 0x%X\n",page_directory_index);
     pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
     pthread_mutex_lock(&lock);
-    if(*addrOfPageDirEntry==0){
+    if(*addrOfPageDirEntry==NULL){
       printf("directory entry unallocated, returning NULL\n");
       pthread_mutex_unlock(&lock);
       return NULL;
     }
     pte_t *addrOfPageTable = (pte_t*)   *addrOfPageDirEntry;
     pte_t *addrOfPageTableEntry = addrOfPageTable + page_table_index;
-    if(*addrOfPageDirEntry==0){
+    if(*addrOfPageTableEntry==NULL){
       printf("table entry unallocated, exiting\n");
       pthread_mutex_unlock(&lock);
       return NULL;
@@ -137,7 +193,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
       //create the page table;
-      pgdir[directory_index]=(pde_t) malloc(numTableEntries*PAGETABLEENTRYSIZE);
+      pgdir[directory_index]=(pde_t) calloc(numTableEntries,PAGETABLEENTRYSIZE);
     }
     //get the beginning of the inner page table
     pte_t* page_table=(pte_t*)pgdir[directory_index];
@@ -255,9 +311,11 @@ void a_free(void *va, int size) {
       if(testBit(page_nums_to_free[i])==0){
         printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
         pthread_mutex_unlock(&lock);
+        free(pa);
         return;
       }
     }
+    free(pa);
     //We are guaranteed that there was a translation and that the pages were allocated
     //Unmap the translations and mark them as unallocated in the bitmap
     for(i=0;i<counter;i++){
@@ -276,11 +334,23 @@ void put_value(void *va, void *val, int size) {
     //put the values pointed to by val inside the physical memory at given virtual address
     //assume you can access val address directly by derefencing it
     //Also, it has the capability to put values inside the tlb
-    //just implement a simple first in first out scheme for value eviction
+
     char* val_ptr=(char*)val;
-    //ASSUMING NO TLB:
-    // Translate VA to PA by calling translate function
-    pte_t* pa=translate(page_dir,va);
+    // Translate VA to PA by checking TLB, if it misses, the searchTLB function calls translate()
+    // pte_t* pa=searchTLB(va);
+    //Check that all memory regions in the range are allocated
+    int allocated=checkAllocated(va,size);
+    if(allocated!=0){
+      printf("!!! Not valid memory addresses. Returning\n");
+      return;
+    }
+    char* pa=(char*)searchTLB(va);
+
+    if(pa==NULL){
+      printf("!!! Not valid memory address. Returning\n");
+      return;
+    }
+
     // For i: 0 to Size
     int i=0;
     pthread_mutex_lock(&lock);
@@ -298,9 +368,20 @@ void get_value(void *va, void *val, int size) {
     //always check first the presence of translation inside the tlb before proceeding forward
     //for testing purpose:
     char* val_ptr=(char*)val;
-    //ASSUMING NO TLB:
-    // Translate VA to PA by calling translate function
-    pte_t* pa=translate(page_dir,va);
+    //Check that all memory regions in the range are allocated
+    int allocated=checkAllocated(va,size);
+    if(allocated!=0){
+      printf("!!! Not valid memory addresses. Returning\n");
+      return;
+    }
+    // Translate VA to PA by checking TLB, if it misses, the searchTLB function calls translate()
+    pte_t* pa=searchTLB(va);
+    if(pa==NULL){
+      printf("!!! Not valid memory address. Returning\n");
+      return;
+    }
+
+
     pthread_mutex_lock(&lock);
     char* pa_ptr=(char*)pa;
     // For i: 0 to Size
@@ -310,6 +391,39 @@ void get_value(void *va, void *val, int size) {
     }
     pthread_mutex_unlock(&lock);
 
+}
+
+pte_t* searchTLB(pte_t* va){
+  unsigned int tlb_index=getTLBIndex(va);
+  unsigned int offset=getPageOffset(va);
+  if(tlb_store->virtual_tags[tlb_index]==(unsigned int)va-offset){
+    //TLB HIT
+    pte_t* physical_address=tlb_store->translations[tlb_index];
+    tlb_store->hits+=1;
+
+    //delete page_num, its just for debugging
+    int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+
+    //printf("TLB HIT! Physical address 0x%X     page number: %d\n",physical_address,page_num);
+
+    return physical_address+offset;
+
+  }
+  else{
+    //TLB MISS
+    tlb_store->virtual_tags[tlb_index]=(unsigned int)va-offset;
+    pte_t* physical_address=translate(page_dir,(unsigned int)(va)-offset);
+    tlb_store->translations[tlb_index]=physical_address;
+
+    //delete page_num, its just for debugging
+    int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+
+    //printf("TLB MISS! Physical Address 0x%X    page number:%d\n",physical_address,page_num);
+    tlb_store->misses+=1;
+
+    return physical_address+offset;
+
+  }
 }
 
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
@@ -328,9 +442,13 @@ void mat_mult(void *mat1, void *mat2, int size, void *answer) {
           int mat1_val=0,mat2_val=0, old_answer_val=0;
           get_value(mat1+(i*size+k)*sizeof(int),&mat1_val,sizeof(int));
           get_value(mat2+(k*size+j)*sizeof(int),&mat2_val,sizeof(int));
+          //printf("adding %d*%d\n",mat1_val,mat2_val);
           ans+=mat1_val*mat2_val;
         }
         put_value(answer+(i*size+j)*sizeof(int), &ans,sizeof(int));
+        int a=0;
+        get_value(answer+(i*size+j)*sizeof(int), &a,sizeof(int));
+
         ans=0;
       }
 
