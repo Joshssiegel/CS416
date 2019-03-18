@@ -1,4 +1,5 @@
 #include "my_vm.h"
+pthread_mutex_t lock;
 
 int log_2(int x){
   unsigned int ans = 0 ;
@@ -61,7 +62,7 @@ unsigned int getDirIndex(void* va){
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
-    if(physical_mem==-1){
+    if((int)physical_mem==-1){
       printf("allocating memory failed\n");
       exit(-1);
     }
@@ -88,6 +89,11 @@ void set_physical_mem() {
     int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
     bitmap=(int*) calloc(numEntriesInBitmap,sizeof(int));
     printf("bitmap initialized to size: %d\n", (numPages/32));
+    if (pthread_mutex_init(&lock, NULL) != 0)
+    {
+        printf("!!! Failed to initialize mutex\n");
+        return;
+    }
 
 }
 
@@ -97,7 +103,6 @@ pte_t * translate(pde_t *pgdir, void *va)
     //walk the page directory to get the address of the second level page table
     //then use the second level page directory and offset in virtual address to return the
     //physical address
-
     //page offset is taken from the LSB of the va
     unsigned int page_offset = getPageOffset(va);
     //get the index of the page table
@@ -110,18 +115,21 @@ pte_t * translate(pde_t *pgdir, void *va)
     // printf("page_dir_index: 0x%X\n ",page_directory_index);
     // now we go into page dir, to get the page table for that entry
     pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
+    pthread_mutex_lock(&lock);
     if(*addrOfPageDirEntry==0){
       printf("directory entry unallocated, returning NULL\n");
+      pthread_mutex_unlock(&lock);
       return NULL;
     }
-    pte_t *addrOfPageTable = *addrOfPageDirEntry;
+    pte_t *addrOfPageTable = (pte_t*)   *addrOfPageDirEntry;
     pte_t *addrOfPageTableEntry = addrOfPageTable + page_table_index;
     if(*addrOfPageDirEntry==0){
       printf("table entry unallocated, exiting\n");
+      pthread_mutex_unlock(&lock);
       return NULL;
     }
-    pte_t *physicalPageAddr = *addrOfPageTableEntry + page_offset;
-
+    pte_t *physicalPageAddr = (pte_t*)(*addrOfPageTableEntry + page_offset);
+    pthread_mutex_unlock(&lock);
     return physicalPageAddr;
 
     //return NULL;
@@ -138,20 +146,23 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     }
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
+    pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
-    if(pgdir[directory_index]==NULL){
+    if(pgdir[directory_index]==0){
       //create the page table;
-      pgdir[directory_index]=(pte_t*) malloc(numTableEntries*PAGETABLEENTRYSIZE);
+      pgdir[directory_index]=(pde_t) malloc(numTableEntries*PAGETABLEENTRYSIZE);
     }
     //get the beginning of the inner page table
-    pte_t* page_table=pgdir[directory_index];
+    pte_t* page_table=(pte_t*)pgdir[directory_index];
     //get the index of the inner page table
     unsigned int table_index=getTableIndex(va);
     //if this page table entry isn't mapped to anything yet, map it to the physical addr
-    if(page_table[table_index]==NULL){
-      page_table[table_index]=pa;
+    if(page_table[table_index]==0){
+      page_table[table_index]=(pte_t)pa;
     }
+    pthread_mutex_unlock(&lock);
+
     return 0;
 }
 
@@ -166,24 +177,27 @@ int page_unmap(pde_t *pgdir, void *va)
     }
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
+    pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
-    if(pgdir[directory_index]==NULL){
+    if(pgdir[directory_index]==0){
       //create the page table;
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
+      pthread_mutex_unlock(&lock);
       return -1;
     }
     //get the beginning of the inner page table
-    pte_t* page_table=pgdir[directory_index];
+    pte_t* page_table=(pte_t*)pgdir[directory_index];
     //get the index of the inner page table
     unsigned int table_index=getTableIndex(va);
     //if this page table entry isn't mapped to anything yet, map it to the physical addr
-    if(page_table[table_index]==NULL){
+    if(page_table[table_index]==(pte_t)NULL){
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
+      pthread_mutex_unlock(&lock);
       return -1;
     }
-    page_table[table_index]=NULL;
-
+    page_table[table_index]=(pte_t)NULL;
+    pthread_mutex_unlock(&lock);
     return 0;
 }
 
@@ -199,11 +213,14 @@ void* a_malloc(unsigned int num_bytes) {
 
     // Step 2) Convert num_bytes to allocate into numPages to allocate
     unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
+    pthread_mutex_lock(&lock);
+
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
 
     if(pageIndex==-1){
       printf("No space to allocate. Returning NULL\n");
+      pthread_mutex_unlock(&lock);
       return NULL;
     }
     // Step 4) Allocate pages found by setting their value to “1” in the bitmap.
@@ -213,18 +230,20 @@ void* a_malloc(unsigned int num_bytes) {
     }
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = 0 + PGSIZE*INDEX_OF_ALLOCATED_PAGE
-    void* va=PGSIZE*pageIndex;
+    void* va=(void*) (PGSIZE*pageIndex);
     //Physical Page to allocate
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
       int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
       if(status==-1){
         printf("!!! Error mapping page. Returning NULL \n");
+        pthread_mutex_unlock(&lock);
         return NULL;
       }
       printf("Mapped VA: 0x%X to PA: 0x%X\n",va+PGSIZE*i, pa+PGSIZE*i);
     }
     // Step 6) return virtual addr of first page in this contiguous block to user.
+    pthread_mutex_unlock(&lock);
     return va;
 }
 
@@ -301,6 +320,7 @@ void get_value(void *va, void *val, int size) {
     //ASSUMING NO TLB:
     // Translate VA to PA by calling translate function
     pte_t* pa=translate(page_dir,va);
+    pthread_mutex_lock(&lock);
     //printf("getting %d at 0x%X\n",*(int*)pa, pa);
     char* pa_ptr=(char*)pa;
     // For i: 0 to Size
@@ -309,6 +329,8 @@ void get_value(void *va, void *val, int size) {
       // *(Val+i)=*(PA+i)
       *(val_ptr+i)=*(pa_ptr+i);
     }
+    pthread_mutex_unlock(&lock);
+
 }
 
 void mat_mult(void *mat1, void *mat2, int size, void *answer) {
