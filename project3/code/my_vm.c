@@ -264,7 +264,7 @@ void a_free(void *va, int size) {
       size-=PGSIZE;
     }while(size>0);
     printf("asking to free %d pages\n",counter);
-
+    pthread_mutex_lock(&lock);
     int i=0;
     int page_nums_to_free[counter];
     for(i=0;i<counter;i++){
@@ -273,6 +273,8 @@ void a_free(void *va, int size) {
       printf("page num to free:  %d\n",page_nums_to_free[i]);
       if(testBit(page_nums_to_free[i])==0){
         printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
+        pthread_mutex_unlock(&lock);
+
         return;
       }
     }
@@ -282,13 +284,12 @@ void a_free(void *va, int size) {
       int status=page_unmap(page_dir,va+i*PGSIZE);
       if(status==-1){
         printf("!!! Tried to unmap unallocated page. Returning\n");
+        pthread_mutex_unlock(&lock);
         return;
       }
       clearBit(page_nums_to_free[i]);
     }
-
-
-
+    pthread_mutex_unlock(&lock);
 }
 
 void put_value(void *va, void *val, int size) {
@@ -303,10 +304,13 @@ void put_value(void *va, void *val, int size) {
     //printf("storing %d at 0x%X\n",*(int*)val,pa);
     // For i: 0 to Size
     int i=0;
+    pthread_mutex_lock(&lock);
     for(i=0;i<size;i++){
       // *(PA+i)=*(Val+i)
       *(pa+i)=*(val_ptr+i);
     }
+    pthread_mutex_unlock(&lock);
+
 
 }
 
