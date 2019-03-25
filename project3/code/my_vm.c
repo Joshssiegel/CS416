@@ -100,14 +100,15 @@ unsigned int getTLBIndex(void* va){
 
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
-    physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    unsigned long mem_size=MEMSIZE;
+    physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
     if((int)physical_mem==-1){
       printf("allocating memory failed\n");
       exit(-1);
     }
     //Calculate bits needed and create bitmasks needed for translation
-    numTotalBits=log2(MEMSIZE);
-    numPages=(MEMSIZE)/(PGSIZE);
+    numTotalBits=log2(mem_size);
+    numPages=(mem_size)/(PGSIZE);
     numPagesBits=log2(numPages);
     numOffsetBits = log2(PGSIZE);
     numPageDirBits = numPagesBits/2; //Floor division

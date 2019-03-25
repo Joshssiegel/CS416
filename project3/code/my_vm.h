@@ -14,7 +14,7 @@
 
 #define PGSIZE (4096)
 #define MAX_MEMSIZE (4*1024*1024*1024)
-#define MEMSIZE (2.0*1024*1024*1024)
+#define MEMSIZE (3*1024*1024*1024+1024*1024*757)//758 causes seg fault
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
 #define TLB_SIZE 16   //number of TLB entries
 
