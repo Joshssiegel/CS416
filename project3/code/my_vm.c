@@ -101,11 +101,14 @@ unsigned int getTLBIndex(void* va){
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
     unsigned long mem_size=MEMSIZE;
-    physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON, -1, 0);
+    //physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
+    physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
     if((int)physical_mem==-1){
       printf("allocating memory failed\n");
+      perror("error: ");
       exit(-1);
     }
+    printf("physical mem located at: 0x%X\n",physical_mem);
     //Calculate bits needed and create bitmasks needed for translation
     numTotalBits=log2(mem_size);
     numPages=(mem_size)/(PGSIZE);
