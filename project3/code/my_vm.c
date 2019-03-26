@@ -100,9 +100,17 @@ unsigned int getTLBIndex(void* va){
 
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
-    unsigned long mem_size=MEMSIZE;
-    //physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
-    physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
+    unsigned long mem_size;
+    if(MEMSIZE>MAX_MEMSIZE){
+      mem_size=MAX_MEMSIZE;
+      printf("MAX_MEMSIZE########\n");
+    }
+    else{
+      mem_size=MEMSIZE;
+      printf("MEMSIZE#######\n");
+    }
+    physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
+    // physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
     if((int)physical_mem==-1){
       printf("allocating memory failed\n");
       perror("error: ");
