@@ -12,7 +12,7 @@ int main() {
     //put_value((void *)(c+4097), &x, sizeof(int));
     //return;
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
-    int mat_size=10;
+    int mat_size=50;
     printf("Storing some integers in the array to make a 5x5 matrix\n");
     for (int i = 0; i < mat_size; i++) {
         for (int j = 0; j < mat_size; j++) {
