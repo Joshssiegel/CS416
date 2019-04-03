@@ -251,12 +251,12 @@ int page_unmap(pde_t *pgdir, void *va)
       return -1;
     }
     page_table[table_index]=(pte_t)NULL;
-    //TODO: remove from TLB if present in it
-    printf("BEFORE:\n");
-    printTLB();
+    //remove from TLB if present in it
+    // printf("BEFORE:\n");
+    // printTLB();
     removeFromTLB(va);
-    printf("AFTER:\n");
-    printTLB();
+    // printf("AFTER:\n");
+    // printTLB();
     pthread_mutex_unlock(&lock);
     return 0;
 }
@@ -287,7 +287,7 @@ void* a_malloc(unsigned int num_bytes) {
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
     if(pageIndex==-1){
-      printf("No space to allocate. Returning NULL\n");
+      printf("!!! No space to allocate. Returning NULL\n");
       pthread_mutex_unlock(&lock);
       return NULL;
     }
