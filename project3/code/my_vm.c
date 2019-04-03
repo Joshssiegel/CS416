@@ -103,11 +103,11 @@ void set_physical_mem() {
     unsigned long mem_size;
     if(MEMSIZE>MAX_MEMSIZE){
       mem_size=MAX_MEMSIZE;
-      printf("MAX_MEMSIZE########\n");
+      // printf("MAX_MEMSIZE########\n");
     }
     else{
       mem_size=MEMSIZE;
-      printf("MEMSIZE#######\n");
+      // printf("MEMSIZE#######\n");
     }
     physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
     // physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
