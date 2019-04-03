@@ -145,7 +145,7 @@ void set_physical_mem() {
     //initialize TLB
     tlb_store=(struct tlb*) malloc(sizeof(struct tlb));
     tlb_store->translations=(pte_t*) calloc(TLB_SIZE,sizeof(pte_t));
-    tlb_store->virtual_tags=(int*) malloc(TLB_SIZE*sizeof(int));
+    tlb_store->virtual_tags=(int*) calloc(TLB_SIZE,sizeof(int));
     tlb_store->hits=0;
     tlb_store->misses=0;
     int i=0;
@@ -251,8 +251,24 @@ int page_unmap(pde_t *pgdir, void *va)
       return -1;
     }
     page_table[table_index]=(pte_t)NULL;
+    //TODO: remove from TLB if present in it
+    printf("BEFORE:\n");
+    printTLB();
+    removeFromTLB(va);
+    printf("AFTER:\n");
+    printTLB();
     pthread_mutex_unlock(&lock);
     return 0;
+}
+
+void removeFromTLB(void *va){
+  unsigned int tlb_index = getTLBIndex(va);
+  unsigned int offset = getPageOffset(va);
+  if(tlb_store->virtual_tags[tlb_index] == (unsigned int)va-offset){// this page was in the TLB
+    printf("Freeing va ==> 0x%x\n This page starts at ==> 0x%x\n", va, (unsigned int)va - offset);
+    tlb_store->virtual_tags[tlb_index] = -1;//(unsigned int)NULL;
+    tlb_store->translations[tlb_index] = (unsigned int)NULL;
+  }
 }
 
 void* a_malloc(unsigned int num_bytes) {
@@ -321,6 +337,7 @@ void a_free(void *va, int size) {
       int offset=getPageOffset(va+i*PGSIZE);
       page_nums_to_free[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
       if(testBit(page_nums_to_free[i])==0){
+        //should never get here
         printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
         pthread_mutex_unlock(&lock);
         free(pa);
@@ -372,6 +389,14 @@ void put_value(void *va, void *val, int size) {
     pthread_mutex_unlock(&lock);
 
 
+}
+
+void printTLB(){
+  int i = 0;
+  for(i=0; i<TLB_SIZE; i++){
+    printf("\ntlb_store->virtual_tags[%d] = 0x%x\n", i, tlb_store->virtual_tags[i]);
+    printf("tlb_store->translations[%d] = 0x%x\n", i, tlb_store->translations[i]);
+  }
 }
 
 void get_value(void *va, void *val, int size) {
