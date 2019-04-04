@@ -2,8 +2,9 @@
 
 int main() {
 
-    printf("Allocating Three arrays of 400 bytes\n");
-    void *a = a_malloc(4*100);
+    // printf("Allocating Three arrays of 400 bytes\n");
+    // void *a = a_malloc(4*100);
+    /*
     int old_a = (int)a;
     void *b = a_malloc(4*100);
     void *c = a_malloc(4*100);
@@ -59,8 +60,8 @@ int main() {
         printf("The allocation free does not work\n");
     a_free(a, 4*100);
 
-
-
+printf("=====================================================\n\n");
+*/
 /*
     void *addr = a_malloc(3*1024*1024*1024+1024*1024*750); // allocating all gigs
     printf("Allocated all memory starting from: 0x%x and ending at: 0x%x\n", addr, (addr+3*1024*1024*1024+1024*1024*750));
@@ -82,31 +83,51 @@ int main() {
     // void *more_addr5 = a_malloc(4096*1*16);
     // a_free(more_addr5, 50000*16);
     // void *more_addr6 = a_malloc(4096*13*16);
-    */
-    int i;
-    int *arr1 = (int*) a_malloc(4096*2*16);
-    int *arr2 = (int*) a_malloc(4096*2*16);
+    *//*
+    unsigned int i;
+    int max_ints = 10;
 
-    for(i=0;i<4096*2*4;i++){
+    unsigned int *arr1 = (unsigned int*) a_malloc(max_ints*4);
+    unsigned int *arr2 = (unsigned int*) a_malloc(max_ints*4);
+
+
+    for(i=0;i<max_ints;i++){
       put_value((void*)(arr1+i),(void*)&i,4);
-      int val;
+    }
+    /*for(i=0;i<max_ints;i++){
+      int val=-1;
       get_value((void*)(arr1+i),(void*)&val,4);
-      printf("i=%d,\t", val);
-    }
-    for(i=0;i<4096*2*4;i++){
+      //printf("(val)=(%d)\t", val);
+    }*/
+// //something happens where get_value stops working
+/*
+    unsigned int j=0;
+    for(j=0;j<max_ints;j++){
       int arr1_val=-1;
-      get_value((void*)(arr1+i),(void*)&arr1_val,4);
-      put_value((void*)(arr2+i),(void*)&arr1_val,4);
+      get_value((void*)(arr1+j),(void*)&arr1_val,4);
+
+       //printf("%d,\t",arr1_val);
+       //printf("Putting at address: 0x%X,\n",(void*)(arr2+j));
+       put_value((void*)(arr2+j),(void*)&arr1_val,4);
       int arr2_val=-1;
-      get_value((void*)(arr2+i),(void*)&arr2_val,4);
-       // printf("%d,\t",arr2_val);
+      get_value((void*)(arr2+j),(void*)&arr2_val,4);
+       printf("%d,\t",arr2_val);
     }
-    a_free(arr1,4096*2*16);
-    a_free(arr2,4096*2*16);
 
-    printf("SIZEOF INT: %d\n", sizeof(int));
+    printf("\narr1 = 0x%x\n arr2 = 0x%x\n", arr1, arr2);
+    // a_free(arr1,4096*2*16);
+    // a_free(arr2,4096*2*16);
 
+    printf("\nSIZEOF INT: %d\n", sizeof(int));
 
+    */
+    int q=69;
+    int p=420;
+    void *a = a_malloc(4);
+    put_value(a,&q,4);
+    a_free(a,4);
+    get_value(a,&p,4);
+    printf("p is: %d\n",p);
     printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
     printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
 
