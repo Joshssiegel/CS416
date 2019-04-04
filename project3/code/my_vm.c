@@ -8,6 +8,10 @@ int log_2(int x){
   }
   return ans ;
 }
+void *unoffset (void *va){
+  unsigned int new_va = (unsigned int)va - OFFSET;
+  return (void*)new_va;
+}
 int checkAllocated(void *va, int size){
   int counter=0;
   pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
@@ -162,6 +166,9 @@ pte_t * translate(pde_t *pgdir, void *va)
     //then use the second level page directory and offset in virtual address to return the
     //physical address
     //page offset is taken from the LSB of the va
+
+    // printf("***Translating address: 0x%x\n", va);
+
     unsigned int page_offset = getPageOffset(va);
     //get the index of the page table
     unsigned int page_table_index = getTableIndex(va);
@@ -229,6 +236,7 @@ int page_unmap(pde_t *pgdir, void *va)
       printf("page directory not set, returning -1\n");
       return -1;
     }
+
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
     pthread_mutex_lock(&lock);
@@ -262,6 +270,7 @@ int page_unmap(pde_t *pgdir, void *va)
 }
 
 void removeFromTLB(void *va){
+
   unsigned int tlb_index = getTLBIndex(va);
   unsigned int offset = getPageOffset(va);
   if(tlb_store->virtual_tags[tlb_index] == (unsigned int)va-offset){// this page was in the TLB
@@ -297,8 +306,8 @@ void* a_malloc(unsigned int num_bytes) {
       setBit(pageIndex+i);
     }
     // Step 5) Choose the virtual addr and map it to the physical pages.
-    //Virtual address = 0 + PGSIZE*INDEX_OF_ALLOCATED_PAGE
-    void* va=(void*) (PGSIZE*pageIndex);
+    //Virtual address = OFFSET + PGSIZE*INDEX_OF_ALLOCATED_PAGE
+    void* va=(void*) (PGSIZE*pageIndex + OFFSET);
     //Physical Page to allocate
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
@@ -318,6 +327,11 @@ void a_free(void *va, int size) {
     //free the page table entries starting from this virtual address and uptill size
     //mark the pages which you recently free
     //only free if the memory from va till va+size is valid
+
+    //TODO: reset va to unoffsetted value
+    va = unoffset(va);
+    printf("Unoffsetted va in free: 0x%x\n", va);
+
     pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
     int counter=0;
     do{
@@ -364,6 +378,9 @@ void put_value(void *va, void *val, int size) {
     //assume you can access val address directly by derefencing it
     //Also, it has the capability to put values inside the tlb
 
+    //TODO: reset va to unoffsetted value
+    va = unoffset(va);
+
     char* val_ptr=(char*)val;
     // Translate VA to PA by checking TLB, if it misses, the searchTLB function calls translate()
     // pte_t* pa=searchTLB(va);
@@ -404,6 +421,10 @@ void get_value(void *va, void *val, int size) {
     //assume you can access val address directly by derefencing them
     //always check first the presence of translation inside the tlb before proceeding forward
     //for testing purpose:
+
+    //TODO: reset va to unoffsetted value
+    va = unoffset(va);
+
     char* val_ptr=(char*)val;
     //Check that all memory regions in the range are allocated
     int allocated=checkAllocated(va,size);
@@ -431,6 +452,8 @@ void get_value(void *va, void *val, int size) {
 }
 
 pte_t* searchTLB(pte_t* va){
+
+
   unsigned int tlb_index=getTLBIndex(va);
   unsigned int offset=getPageOffset(va);
   if(tlb_store->virtual_tags[tlb_index]==(unsigned int)va-offset){
