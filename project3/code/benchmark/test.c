@@ -91,7 +91,7 @@ int main() {
       put_value((void*)(arr1+i),(void*)&i,4);
       int val;
       get_value((void*)(arr1+i),(void*)&val,4);
-      printf("i=%d,\t", val);
+      //printf("i=%d,\t", val);
     }
     for(i=0;i<4096*2*4;i++){
       int arr1_val=-1;
@@ -99,7 +99,7 @@ int main() {
       put_value((void*)(arr2+i),(void*)&arr1_val,4);
       int arr2_val=-1;
       get_value((void*)(arr2+i),(void*)&arr2_val,4);
-       // printf("%d,\t",arr2_val);
+      printf("%d,\t",arr2_val);
     }
     a_free(arr1,4096*2*16);
     a_free(arr2,4096*2*16);
