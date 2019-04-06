@@ -18,8 +18,49 @@ void looptest(void* z){
   }
   printf("Done thread %d\n",c_num);
 }
+
+void randomAccess(){
+  char *arr = a_malloc(1*1024*1024*1024);
+  unsigned int r,i;
+  int numAccesses=4096;
+  int upper=1*1024*1024*1024-1;
+  int lower=0;
+  unsigned int y = 0;
+  srand(time(NULL));
+
+  for(i=0;i<numAccesses;i++){
+    r = (rand() % (upper - lower + 1)) + lower;
+    printf("Rand num is: %d\n",r);
+    put_value(arr+r,&r,4);
+    get_value(arr+r,&y,4);
+    printf("Rand num was: %d\n",y);
+  }
+  printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
+  printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+  a_free(arr,1*1024*1024*1024);
+}
+void sequentialAccess(){
+  char *arr = a_malloc(3*1024*1024*1024+1024*1024*500);
+  int r,i;
+  int numAccesses=4096;
+  int upper=3*1024*1024*1024+1024*1024*500-1;
+  int lower=0;
+  unsigned long y = 0;
+
+  for(i=0;i<numAccesses;i++){
+    r = i;
+    printf(" num is: %d\n",r);
+    put_value(arr+r,&r,4);
+    get_value(arr+r,&y,4);
+    printf(" num was: %d\n",y);
+  }
+  printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
+  printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+  a_free(arr,3*1024*1024*1024+1024*1024*500);
+
+}
 int main() {
-  /*
+
     printf("Allocating Three arrays of 400 bytes\n");
     void *a = a_malloc(4*100);
 
@@ -32,14 +73,16 @@ int main() {
     //return;
 
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
-    int mat_size=5;
+    int mat_size=3;
     printf("Storing some integers in the array to make a 5x5 matrix\n");
     for (int i = 0; i < mat_size; i++) {
         for (int j = 0; j < mat_size; j++) {
             int address_a = (unsigned int)a + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
             int address_b = (unsigned int)b + ((i * mat_size * sizeof(int))) + (j * sizeof(int));
+
             put_value((void *)address_a, &x, sizeof(int));
             put_value((void *)address_b, &x, sizeof(int));
+
         }
     }
 
@@ -77,7 +120,9 @@ int main() {
         printf("The allocation free works\n");
     else
         printf("The allocation free does not work\n");
-    a_free(a, 4*100);*/
+    a_free(a, 4*100);
+
+    printf("\n\\\\\\\\\\\\\\\\\\\\\n" );
 
 /*
 printf("=====================================================\n\n");
@@ -154,26 +199,49 @@ printf("=====================================================\n\n");
     printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
     printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
     */
+    /*
     int loop, numThreads = 20;
 
-
+*/
     // int numThreads = 50;
-    pthread_t thread_ids[numThreads];
-    printf("Before Thread\n");
-    int pqr = 0;
-
+    // pthread_t thread_ids[numThreads];
+    // printf("Before Thread\n");
+    // int pqr = 0;
+    //
     // int loop=0;
-    for(loop = 0; loop<numThreads; loop++){
-      if(pthread_create(&thread_ids[loop], NULL, looptest, (void*)&pqr)!=0){
-        printf("error creating thread\n");
-        return -1;
-      }
-      printf("Created thread (%d)\n", loop);
-    }
-    for(loop = 0; loop<numThreads; loop++){
-      pthread_join(thread_ids[loop], NULL);
-      printf("Joined thread (%d)\n", loop);
-    }
-    printf("Threads have joined\n");
+    // for(loop = 0; loop<numThreads; loop++){
+    //   if(pthread_create(&thread_ids[loop], NULL, looptest, (void*)&pqr)!=0){
+    //     printf("error creating thread\n");
+    //     return -1;
+    //   }
+    //   printf("Created thread (%d)\n", loop);
+    // }
+    // for(loop = 0; loop<numThreads; loop++){
+    //   pthread_join(thread_ids[loop], NULL);
+    //   printf("Joined thread (%d)\n", loop);
+    // }
+    // printf("Threads have joined\n");
+
+
+    randomAccess();
+    //all mem free here
+    printf("freeee\n");
+    // void * mem1 = a_malloc(3*1024*1024*1024);
+    // void * mem2 = a_malloc(500*1024*1024);
+    // a_free(mem2+4096*2345, 1);//freed one page
+    // void * mem3 = a_malloc(1);
+    // a_free(mem1, 1024*1024*1024);
+    // a_free(mem1+1024*1024*1024, 1024*1024*1024);
+    // a_free(mem1+2*1024*1024*1024, 1024*1024*1024);
+    // // a_free(mem2,(500*1024*1024));
+
+    sequentialAccess();
+    //
+    printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
+    printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+
+
+    // printf("af = %f\n", af);
+
     return 0;
   }
