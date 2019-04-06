@@ -8,12 +8,12 @@ void looptest(void* z){
   int c_num = countthreads++;
   printf("in looptest\n");
   unsigned long p = *((unsigned long*)z);
-  for(i=0;i<256;i++){
+  for(i=0;i<64;i++){
     void *x = a_malloc(100);
     unsigned long q = 0;
     put_value(x,&p,4);
     get_value(x,&q,4);
-    printf("\n(%d)q is ==> %d\nn", c_num, q);
+    printf("\n(%d)q is ==> %d\n", c_num, q);
     p++;
   }
   printf("Done thread %d\n",c_num);
@@ -197,36 +197,26 @@ printf("=====================================================\n\n");
     /*
     int loop, numThreads = 63;
 
+
+    // int numThreads = 50;
     pthread_t thread_ids[numThreads];
     printf("Before Thread\n");
     int pqr = 0;
-    for(loop=0;loop<numThreads;loop++){
+
+    // int loop=0;
+    for(loop = 0; loop<numThreads; loop++){
       if(pthread_create(&thread_ids[loop], NULL, looptest, (void*)&pqr)!=0){
-        printf("error creating thread %d\n",loop);
+        printf("error creating thread\n");
         return -1;
       }
+      printf("Created thread (%d)\n", loop);
     }
-
-    for(loop=0;loop<numThreads;loop++){
-      // printf("Joining on thread (1)\n");
+    for(loop = 0; loop<numThreads; loop++){
       pthread_join(thread_ids[loop], NULL);
-      printf("Joined on thread (%d)\n", loop);
+      printf("Joined thread (%d)\n", loop);
     }
     printf("Threads have joined\n");*/
     randomAccess();
     //sequentialAccess();
     return 0;
   }
-
-// void looptest(void* z){
-//   int i = 0;
-//   unsigned long p = *((unsigned long*)z);
-//   for(i=0;i<1024*1024;i++){
-//     void *x = a_malloc(100);
-//     unsigned long q = 0;
-//     put_value(x,&p,10);
-//     get_value(x,&q,10);
-//     printf("q is ==> %dn", q);
-//     p++;
-//   }
-// }

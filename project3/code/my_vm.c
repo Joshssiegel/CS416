@@ -298,12 +298,13 @@ void removeFromTLB(void *va){
 }
 
 void* a_malloc(unsigned int num_bytes) {
+    pthread_mutex_lock(&lock);
     //you will allocate the pages required to store the given number of bytes as
     //continuous virtual address.
     //you will have to store the page table entries
     //you will also have to mark which physical pages have been used
     // Step 1) Check if page directory has been initialized, if not, call set_physical_mem()
-    pthread_mutex_lock(&lock);
+
 
     if(page_dir==NULL){
       set_physical_mem();
@@ -314,6 +315,7 @@ void* a_malloc(unsigned int num_bytes) {
 
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
+    // printf("PI!\n" );
 
     if(pageIndex==-1){
       printf("!!! No space to allocate. Returning NULL\n");
@@ -325,6 +327,8 @@ void* a_malloc(unsigned int num_bytes) {
     for(i=0;i<pages_to_allocate;i++){
       setBit(pageIndex+i);
     }
+    // printf("set bit!\n" );
+
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = OFFSET + PGSIZE*INDEX_OF_ALLOCATED_PAGE
     void* va=(void*) (PGSIZE*pageIndex + OFFSET);
@@ -332,6 +336,7 @@ void* a_malloc(unsigned int num_bytes) {
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
       int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
+      // printf("mapped!\n" );
 
       if(status==-1){
         printf("!!! Error mapping page. Returning NULL \n");
@@ -341,6 +346,7 @@ void* a_malloc(unsigned int num_bytes) {
     }
     // Step 6) return virtual addr of first page in this contiguous block to user.
     pthread_mutex_unlock(&lock);
+    // printf("returning from malloc!\n" );
 
     return va;
 }
