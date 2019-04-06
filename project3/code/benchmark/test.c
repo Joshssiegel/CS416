@@ -19,7 +19,7 @@ void looptest(void* z){
   printf("Done thread %d\n",c_num);
 }
 int main() {
-
+  /*
     printf("Allocating Three arrays of 400 bytes\n");
     void *a = a_malloc(4*100);
 
@@ -30,6 +30,7 @@ int main() {
     int y, z;
     //put_value((void *)(c+4097), &x, sizeof(int));
     //return;
+
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
     int mat_size=5;
     printf("Storing some integers in the array to make a 5x5 matrix\n");
@@ -76,7 +77,8 @@ int main() {
         printf("The allocation free works\n");
     else
         printf("The allocation free does not work\n");
-    a_free(a, 4*100);
+    a_free(a, 4*100);*/
+
 /*
 printf("=====================================================\n\n");
 */
@@ -111,6 +113,9 @@ printf("=====================================================\n\n");
 
     for(i=0;i<max_ints;i++){
       put_value((void*)(arr1+i),(void*)&i,4);
+      int val;
+      get_value((void*)(arr1+i),(void*)&val,4);
+      //printf("i=%d,\t", val);
     }
     /*for(i=0;i<max_ints;i++){
       int val=-1;
@@ -128,8 +133,8 @@ printf("=====================================================\n\n");
        //printf("Putting at address: 0x%X,\n",(void*)(arr2+j));
        put_value((void*)(arr2+j),(void*)&arr1_val,4);
       int arr2_val=-1;
-      get_value((void*)(arr2+j),(void*)&arr2_val,4);
-       printf("%d,\t",arr2_val);
+      get_value((void*)(arr2+i),(void*)&arr2_val,4);
+      printf("%d,\t",arr2_val);
     }
 
     printf("\narr1 = 0x%x\n arr2 = 0x%x\n", arr1, arr2);
@@ -139,6 +144,7 @@ printf("=====================================================\n\n");
     printf("\nSIZEOF INT: %d\n", sizeof(int));
 
     */
+    /*
     int q=69;
     int p=420;
     void *aa = a_malloc(4);
@@ -147,14 +153,16 @@ printf("=====================================================\n\n");
     printf("p is: %d\n",p);
     printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
     printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+    */
+    int loop, numThreads = 20;
 
 
-    int numThreads = 50;
+    // int numThreads = 50;
     pthread_t thread_ids[numThreads];
     printf("Before Thread\n");
     int pqr = 0;
 
-    int loop=0;
+    // int loop=0;
     for(loop = 0; loop<numThreads; loop++){
       if(pthread_create(&thread_ids[loop], NULL, looptest, (void*)&pqr)!=0){
         printf("error creating thread\n");

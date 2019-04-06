@@ -120,7 +120,7 @@ void set_physical_mem() {
        printf("asked to allocate %u so setting it to Max=%u\n",mem_size,max_mem_size);
     }
     else{
-      mem_size=MEMSIZE;
+      // mem_size=MEMSIZE;
       printf("physical mem size =%u < max=%u\n",mem_size, max_mem_size);
     }
     physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
@@ -299,6 +299,8 @@ void* a_malloc(unsigned int num_bytes) {
     //you will have to store the page table entries
     //you will also have to mark which physical pages have been used
     // Step 1) Check if page directory has been initialized, if not, call set_physical_mem()
+    
+
     if(page_dir==NULL){
       set_physical_mem();
     }
