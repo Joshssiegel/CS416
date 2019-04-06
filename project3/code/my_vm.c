@@ -27,7 +27,7 @@ int checkAllocated(void *va, int size){
   //count pages
   do{
     pa[counter]=translate(page_dir, va+PGSIZE*counter);
-    printf("found translation virtual 0x%x to physical 0x%x\n",va+PGSIZE*counter,pa[counter] );
+    // printf("found translation virtual 0x%x to physical 0x%x\n",va+PGSIZE*counter,pa[counter] );
     if(pa[counter]==NULL){
       printf("!!! Virtual address: 0x%X was not allocated.\n",va+PGSIZE*counter);
       free(pa);
@@ -167,7 +167,7 @@ void set_physical_mem() {
     for (i=0;i<TLB_SIZE;i++){
       tlb_store->virtual_tags[i]=-1;
     }
-
+    printf("done set physical mem\n");
 }
 
 pte_t * translate(pde_t *pgdir, void *va)
@@ -219,7 +219,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     }
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
@@ -234,7 +234,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     if(page_table[table_index]==0){
       page_table[table_index]=(pte_t)pa;
     }
-    pthread_mutex_unlock(&lock);
+    //pthread_mutex_unlock(&lock);
 
     return 0;
 }
@@ -251,13 +251,13 @@ int page_unmap(pde_t *pgdir, void *va)
 
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
       //create the page table;
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
-      pthread_mutex_unlock(&lock);
+      // pthread_mutex_unlock(&lock);
       return -1;
     }
     //get the beginning of the inner page table
@@ -267,7 +267,7 @@ int page_unmap(pde_t *pgdir, void *va)
     //if this page table entry isn't mapped to anything yet, map it to the physical addr
     if(page_table[table_index]==(pte_t)NULL){
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
-      pthread_mutex_unlock(&lock);
+      // pthread_mutex_unlock(&lock);
       return -1;
     }
     page_table[table_index]=(pte_t)NULL;
@@ -277,7 +277,7 @@ int page_unmap(pde_t *pgdir, void *va)
     removeFromTLB(va);
     // printf("AFTER:\n");
     // printTLB();
-    pthread_mutex_unlock(&lock);
+    // pthread_mutex_unlock(&lock);
     return 0;
 }
 
@@ -286,7 +286,7 @@ void removeFromTLB(void *va){
   unsigned int tlb_index = getTLBIndex(va);
   unsigned int offset = getPageOffset(va);
   if(tlb_store->virtual_tags[tlb_index] == (unsigned int)va-offset){// this page was in the TLB
-    printf("Freeing va ==> 0x%x\n This page starts at ==> 0x%x\n", va, (unsigned int)va - offset);
+    // printf("Freeing va ==> 0x%x\n This page starts at ==> 0x%x\n", va, (unsigned int)va - offset);
     tlb_store->virtual_tags[tlb_index] = -1;//(unsigned int)NULL;
     tlb_store->translations[tlb_index] = (unsigned int)NULL;
   }
@@ -304,9 +304,12 @@ void* a_malloc(unsigned int num_bytes) {
     // Step 2) Convert num_bytes to allocate into numPages to allocate
     unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
     pthread_mutex_lock(&lock);
+    // printf("Lock!\n" );
 
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
+    printf("PI!\n" );
+
     if(pageIndex==-1){
       printf("!!! No space to allocate. Returning NULL\n");
       pthread_mutex_unlock(&lock);
@@ -317,6 +320,8 @@ void* a_malloc(unsigned int num_bytes) {
     for(i=0;i<pages_to_allocate;i++){
       setBit(pageIndex+i);
     }
+    printf("set bit!\n" );
+
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = OFFSET + PGSIZE*INDEX_OF_ALLOCATED_PAGE
     void* va=(void*) (PGSIZE*pageIndex + OFFSET);
@@ -324,6 +329,8 @@ void* a_malloc(unsigned int num_bytes) {
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
       int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
+      printf("mapped!\n" );
+
       if(status==-1){
         printf("!!! Error mapping page. Returning NULL \n");
         pthread_mutex_unlock(&lock);
@@ -332,6 +339,8 @@ void* a_malloc(unsigned int num_bytes) {
     }
     // Step 6) return virtual addr of first page in this contiguous block to user.
     pthread_mutex_unlock(&lock);
+    printf("returning from malloc!\n" );
+
     return va;
 }
 
@@ -357,7 +366,7 @@ void a_free(void *va, int size) {
       counter+=1;
       size-=PGSIZE;
     }while(size>0);
-    printf("asking to free %d pages\n",counter);
+    // printf("asking to free %d pages\n",counter);
     pthread_mutex_lock(&lock);
     int i=0;
     int page_nums_to_free[counter];
@@ -382,7 +391,7 @@ void a_free(void *va, int size) {
         pthread_mutex_unlock(&lock);
         return;
       }
-      printf("freed\n");
+      // printf("freed\n");
       clearBit(page_nums_to_free[i]);
 
     }

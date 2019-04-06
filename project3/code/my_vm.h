@@ -42,6 +42,7 @@ unsigned int tlb_bitmask;
 pde_t* page_dir;
 int* bitmap;
 
+
 struct tlb {
     //fill this in. this structure will represent a tlb.
     //assume it is a direct mapped TLB of TLB_SIZE (buckets)
