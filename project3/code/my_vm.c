@@ -59,7 +59,7 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
   // bitmap
   int i = 0;
   int counter = 0;
-  int leastRegionFound = numPages+1;
+  int leastRegionFound = numPages+2;
   int index = -1;
 
   for(i=0; i<numPages; i++){
@@ -78,9 +78,13 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
       counter = 0;
     }
   }
+  //last place is best
   if(counter>=pagesToAllocate && counter<leastRegionFound){
     index = i - counter;
+    printf("last place best\n");
   }
+  printf("pages to allocate: %d, i is: %d counter is %d and least region found is: %d\n",pagesToAllocate,i, counter,leastRegionFound);
+  printf("index to alocate pages %d\n",index);
   return index;
 }
 
@@ -135,6 +139,7 @@ void set_physical_mem() {
     numTotalBits=(int)ceil(log2(mem_size));
     printf("total bits being used: %d\n",numTotalBits);
     numPages=(int)ceil((mem_size)/(PGSIZE));
+    printf("num pages: %d\n",numPages);
     numPagesBits=(int)ceil(log2(numPages));
     numOffsetBits = (int)ceil(log2(PGSIZE));
     numPageDirBits = numPagesBits/2; //Floor division
@@ -304,7 +309,7 @@ void* a_malloc(unsigned int num_bytes) {
       set_physical_mem();
     }
     // Step 2) Convert num_bytes to allocate into numPages to allocate
-    unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
+    unsigned int pages_to_allocate=ceil(num_bytes/PGSIZE);
     // printf("Lock!\n" );
 
     // Step 3) Get Shortest Continuous Memory Region

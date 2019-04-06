@@ -18,6 +18,45 @@ void looptest(void* z){
   }
   printf("Done thread %d\n",c_num);
 }
+void randomAccess(){
+  char *arr = a_malloc(3*1024*1024*1024+6969);
+  unsigned int r,i;
+  int numAccesses=1024;
+  int upper=8*4096;
+  int lower=0;
+  unsigned int y = 0;
+  srand(time(NULL));
+
+  for(i=0;i<numAccesses;i++){
+    r = (rand() % (upper - lower + 1)) + lower;
+    printf("Rand num is: %d\n",r);
+    put_value(arr+r,&r,4);
+    get_value(arr+r,&y,4);
+    printf("Rand num was: %d\n",y);
+  }
+  printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
+  printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+
+}
+void sequentialAccess(){
+  char *arr = a_malloc(3*1024*1024*1024+1024*1024*500);
+  int r,i;
+  int numAccesses=4096;
+  int upper=3*1024*1024*1024+1024*1024*500-1;
+  int lower=0;
+  unsigned long y = 0;
+
+  for(i=0;i<numAccesses;i++){
+    r = i;
+    // printf("Rand num is: %d\n",r);
+    put_value(arr+r,&r,4);
+    get_value(arr+r,&y,4);
+    // printf("Rand num was: %d\n",y);
+  }
+  printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
+  printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+
+}
 int main() {
   /*
     printf("Allocating Three arrays of 400 bytes\n");
@@ -154,6 +193,8 @@ printf("=====================================================\n\n");
     printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
     printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
     */
+
+    /*
     int loop, numThreads = 63;
 
     pthread_t thread_ids[numThreads];
@@ -171,7 +212,9 @@ printf("=====================================================\n\n");
       pthread_join(thread_ids[loop], NULL);
       printf("Joined on thread (%d)\n", loop);
     }
-    printf("Threads have joined\n");
+    printf("Threads have joined\n");*/
+    randomAccess();
+    //sequentialAccess();
     return 0;
   }
 
