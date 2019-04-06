@@ -8,7 +8,7 @@ void looptest(void* z){
   int c_num = countthreads++;
   printf("in looptest\n");
   unsigned long p = *((unsigned long*)z);
-  for(i=0;i<1024;i++){
+  for(i=0;i<256;i++){
     void *x = a_malloc(100);
     unsigned long q = 0;
     put_value(x,&p,4);
@@ -19,7 +19,7 @@ void looptest(void* z){
   printf("Done thread %d\n",c_num);
 }
 int main() {
-
+  /*
     printf("Allocating Three arrays of 400 bytes\n");
     void *a = a_malloc(4*100);
 
@@ -30,6 +30,7 @@ int main() {
     int y, z;
     //put_value((void *)(c+4097), &x, sizeof(int));
     //return;
+
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
     int mat_size=5;
     printf("Storing some integers in the array to make a 5x5 matrix\n");
@@ -76,7 +77,8 @@ int main() {
         printf("The allocation free works\n");
     else
         printf("The allocation free does not work\n");
-    a_free(a, 4*100);
+    a_free(a, 4*100);*/
+
 /*
 printf("=====================================================\n\n");
 */
@@ -142,6 +144,7 @@ printf("=====================================================\n\n");
     printf("\nSIZEOF INT: %d\n", sizeof(int));
 
     */
+    /*
     int q=69;
     int p=420;
     void *aa = a_malloc(4);
@@ -150,19 +153,20 @@ printf("=====================================================\n\n");
     printf("p is: %d\n",p);
     printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
     printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+    */
+    int loop, numThreads = 63;
 
-
-    pthread_t *thread_ids;
+    pthread_t thread_ids[numThreads];
     printf("Before Thread\n");
     int pqr = 0;
-    if(pthread_create(&thread_ids[0], NULL, looptest, (void*)&pqr)!=0){
-      printf("error creating thread\n");
+    for(loop=0;loop<numThreads;loop++){
+      if(pthread_create(&thread_ids[loop], NULL, looptest, (void*)&pqr)!=0){
+        printf("error creating thread %d\n",loop);
+        return -1;
+      }
     }
-    // if(pthread_create(&thread_ids[1], NULL, looptest, (void*)&pqr)!=0){
-    //   printf("error creating thread\n");
-    // }
-    int loop, numthreads = 1;
-    for(loop=0;loop<numthreads;loop++){
+
+    for(loop=0;loop<numThreads;loop++){
       // printf("Joining on thread (1)\n");
       pthread_join(thread_ids[loop], NULL);
       printf("Joined on thread (%d)\n", loop);

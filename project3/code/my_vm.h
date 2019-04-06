@@ -13,8 +13,8 @@
 //Add any important includes here which you may need
 
 #define PGSIZE (4096)
-#define MAX_MEMSIZE (3*1024*1024*1024+1024*1024*750)//758 causes seg fault
-#define MEMSIZE (3*1024*1024*1024+1024*1024*750)//758 causes seg fault
+#define MAX_MEMSIZE (3*1024*1024*1024+1024*1024*500)//758 causes seg fault
+#define MEMSIZE (3*1024*1024*1024+1024*1024*500)//758 causes seg fault
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
 #define TLB_SIZE 16   //number of TLB entries
 #define OFFSET 32 // offset for Virtual Address
