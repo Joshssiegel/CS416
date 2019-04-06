@@ -9,16 +9,25 @@ int log_2(int x){
   return ans ;
 }
 void *unoffset (void *va){
+  if(va<20){
+    printf("Bad Address. Cannot process. Returning -1\n");
+    return -1;
+  }
   unsigned int new_va = (unsigned int)va - OFFSET;
   return (void*)new_va;
 }
 int checkAllocated(void *va, int size){
+  if(va<0){
+    printf("!!! Bad Virtual address: 0x%X\n",va);
+
+    return -1;
+  }
   int counter=0;
   pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
-
   //count pages
   do{
     pa[counter]=translate(page_dir, va+PGSIZE*counter);
+    // printf("found translation virtual 0x%x to physical 0x%x\n",va+PGSIZE*counter,pa[counter] );
     if(pa[counter]==NULL){
       printf("!!! Virtual address: 0x%X was not allocated.\n",va+PGSIZE*counter);
       free(pa);
@@ -104,14 +113,15 @@ unsigned int getTLBIndex(void* va){
 
 void set_physical_mem() {
     //allocate physical memory using mmap or malloc
-    unsigned long mem_size;
-    if(MEMSIZE>MAX_MEMSIZE){
+    unsigned long mem_size=MEMSIZE;
+    unsigned long max_mem_size=MAX_MEMSIZE;
+    if(mem_size>max_mem_size || mem_size<0){
       mem_size=MAX_MEMSIZE;
-      // printf("MAX_MEMSIZE########\n");
+       printf("asked to allocate %u so setting it to Max=%u\n",mem_size,max_mem_size);
     }
     else{
       mem_size=MEMSIZE;
-      // printf("MEMSIZE#######\n");
+      printf("physical mem size =%u < max=%u\n",mem_size, max_mem_size);
     }
     physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
     // physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
@@ -121,14 +131,15 @@ void set_physical_mem() {
       exit(-1);
     }
     printf("physical mem located at: 0x%X\n",physical_mem);
-    //Calculate bits needed and create bitmasks needed for translation
-    numTotalBits=log2(mem_size);
-    numPages=(mem_size)/(PGSIZE);
-    numPagesBits=log2(numPages);
-    numOffsetBits = log2(PGSIZE);
+    //Calculate bits (needed and create bitmasks needed for translation
+    numTotalBits=(int)ceil(log2(mem_size));
+    printf("total bits being used: %d\n",numTotalBits);
+    numPages=(int)ceil((mem_size)/(PGSIZE));
+    numPagesBits=(int)ceil(log2(numPages));
+    numOffsetBits = (int)ceil(log2(PGSIZE));
     numPageDirBits = numPagesBits/2; //Floor division
     numPageTableBits = numPagesBits - numPageDirBits;
-    numTLBBits= log2(TLB_SIZE);
+    numTLBBits= (int)ceil(log2(TLB_SIZE));
     numDirEntries=pow(2,numPageDirBits);
     numTableEntries=pow(2,numPageTableBits);
     lower_bitmask= (int) pow(2,numOffsetBits)-1;
@@ -156,7 +167,7 @@ void set_physical_mem() {
     for (i=0;i<TLB_SIZE;i++){
       tlb_store->virtual_tags[i]=-1;
     }
-
+    printf("done set physical mem\n");
 }
 
 pte_t * translate(pde_t *pgdir, void *va)
@@ -191,7 +202,8 @@ pte_t * translate(pde_t *pgdir, void *va)
       pthread_mutex_unlock(&lock);
       return NULL;
     }
-    pte_t *physicalPageAddr = (pte_t*)(*addrOfPageTableEntry + page_offset);
+
+    pte_t *physicalPageAddr = (pte_t*)(*addrOfPageTableEntry + page_offset);//can do this because *addrOfPageTableEntry is an unsigned long
     pthread_mutex_unlock(&lock);
     return physicalPageAddr;
 }
@@ -207,7 +219,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     }
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
@@ -222,7 +234,7 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     if(page_table[table_index]==0){
       page_table[table_index]=(pte_t)pa;
     }
-    pthread_mutex_unlock(&lock);
+    //pthread_mutex_unlock(&lock);
 
     return 0;
 }
@@ -239,13 +251,13 @@ int page_unmap(pde_t *pgdir, void *va)
 
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
-    pthread_mutex_lock(&lock);
+    //pthread_mutex_lock(&lock);
 
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
       //create the page table;
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
-      pthread_mutex_unlock(&lock);
+      // pthread_mutex_unlock(&lock);
       return -1;
     }
     //get the beginning of the inner page table
@@ -255,7 +267,7 @@ int page_unmap(pde_t *pgdir, void *va)
     //if this page table entry isn't mapped to anything yet, map it to the physical addr
     if(page_table[table_index]==(pte_t)NULL){
       printf("!!! Can't unmap an unallocated memory address, returning -1\n");
-      pthread_mutex_unlock(&lock);
+      // pthread_mutex_unlock(&lock);
       return -1;
     }
     page_table[table_index]=(pte_t)NULL;
@@ -265,7 +277,7 @@ int page_unmap(pde_t *pgdir, void *va)
     removeFromTLB(va);
     // printf("AFTER:\n");
     // printTLB();
-    pthread_mutex_unlock(&lock);
+    // pthread_mutex_unlock(&lock);
     return 0;
 }
 
@@ -274,7 +286,7 @@ void removeFromTLB(void *va){
   unsigned int tlb_index = getTLBIndex(va);
   unsigned int offset = getPageOffset(va);
   if(tlb_store->virtual_tags[tlb_index] == (unsigned int)va-offset){// this page was in the TLB
-    printf("Freeing va ==> 0x%x\n This page starts at ==> 0x%x\n", va, (unsigned int)va - offset);
+    // printf("Freeing va ==> 0x%x\n This page starts at ==> 0x%x\n", va, (unsigned int)va - offset);
     tlb_store->virtual_tags[tlb_index] = -1;//(unsigned int)NULL;
     tlb_store->translations[tlb_index] = (unsigned int)NULL;
   }
@@ -292,9 +304,12 @@ void* a_malloc(unsigned int num_bytes) {
     // Step 2) Convert num_bytes to allocate into numPages to allocate
     unsigned int pages_to_allocate=(num_bytes%PGSIZE)==0? (num_bytes/PGSIZE) : (num_bytes/PGSIZE)+1;
     pthread_mutex_lock(&lock);
+    // printf("Lock!\n" );
 
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
+    printf("PI!\n" );
+
     if(pageIndex==-1){
       printf("!!! No space to allocate. Returning NULL\n");
       pthread_mutex_unlock(&lock);
@@ -305,6 +320,8 @@ void* a_malloc(unsigned int num_bytes) {
     for(i=0;i<pages_to_allocate;i++){
       setBit(pageIndex+i);
     }
+    printf("set bit!\n" );
+
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = OFFSET + PGSIZE*INDEX_OF_ALLOCATED_PAGE
     void* va=(void*) (PGSIZE*pageIndex + OFFSET);
@@ -312,6 +329,8 @@ void* a_malloc(unsigned int num_bytes) {
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
       int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
+      printf("mapped!\n" );
+
       if(status==-1){
         printf("!!! Error mapping page. Returning NULL \n");
         pthread_mutex_unlock(&lock);
@@ -320,6 +339,8 @@ void* a_malloc(unsigned int num_bytes) {
     }
     // Step 6) return virtual addr of first page in this contiguous block to user.
     pthread_mutex_unlock(&lock);
+    printf("returning from malloc!\n" );
+
     return va;
 }
 
@@ -328,9 +349,11 @@ void a_free(void *va, int size) {
     //mark the pages which you recently free
     //only free if the memory from va till va+size is valid
 
-    //TODO: reset va to unoffsetted value
     va = unoffset(va);
-    printf("Unoffsetted va in free: 0x%x\n", va);
+    if(va==-1){
+      printf("!!! Virtual address is bad. Returning and not freeing.\n");
+      return;
+    }
 
     pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
     int counter=0;
@@ -343,7 +366,7 @@ void a_free(void *va, int size) {
       counter+=1;
       size-=PGSIZE;
     }while(size>0);
-    printf("asking to free %d pages\n",counter);
+    // printf("asking to free %d pages\n",counter);
     pthread_mutex_lock(&lock);
     int i=0;
     int page_nums_to_free[counter];
@@ -368,7 +391,9 @@ void a_free(void *va, int size) {
         pthread_mutex_unlock(&lock);
         return;
       }
+      // printf("freed\n");
       clearBit(page_nums_to_free[i]);
+
     }
     pthread_mutex_unlock(&lock);
 }
@@ -378,8 +403,12 @@ void put_value(void *va, void *val, int size) {
     //assume you can access val address directly by derefencing it
     //Also, it has the capability to put values inside the tlb
 
-    //TODO: reset va to unoffsetted value
     va = unoffset(va);
+    if(va==-1){
+      printf("!!! Virtual address is bad. Returning and not freeing.\n");
+      return;
+    }
+    //printf("writing 4 bytes to virtual address 0x%X\n",((unsigned int)va));
 
     char* val_ptr=(char*)val;
     // Translate VA to PA by checking TLB, if it misses, the searchTLB function calls translate()
@@ -390,8 +419,9 @@ void put_value(void *va, void *val, int size) {
       printf("!!! Not valid memory addresses. Returning\n");
       return;
     }
-    char* pa=(char*)searchTLB(va);
 
+    char* pa=(char*)searchTLB(va);
+    // printf("physical address 0x%X virtual addr: 0x%X\n",((unsigned int)pa-(unsigned int)physical_mem),va);
     if(pa==NULL){
       printf("!!! Not valid memory address. Returning\n");
       return;
@@ -422,9 +452,12 @@ void get_value(void *va, void *val, int size) {
     //always check first the presence of translation inside the tlb before proceeding forward
     //for testing purpose:
 
-    //TODO: reset va to unoffsetted value
+    //reset va to unoffsetted value
     va = unoffset(va);
-
+    if(va==-1){
+      printf("!!! Virtual address is bad. Returning and not freeing.\n");
+      return;
+    }
     char* val_ptr=(char*)val;
     //Check that all memory regions in the range are allocated
     int allocated=checkAllocated(va,size);
@@ -466,7 +499,7 @@ pte_t* searchTLB(pte_t* va){
 
     //printf("TLB HIT! Physical address 0x%X     page number: %d\n",physical_address,page_num);
 
-    return physical_address+offset;
+    return (char*)physical_address+offset;
 
   }
   else{
@@ -480,8 +513,10 @@ pte_t* searchTLB(pte_t* va){
 
     //printf("TLB MISS! Physical Address 0x%X    page number:%d\n",physical_address,page_num);
     tlb_store->misses+=1;
+    // printf("offset: %d\n",offset);
+     //printf("physical_address without offset: 0x%X\n",physical_address);
 
-    return physical_address+offset;
+    return (unsigned int)physical_address+offset;
 
   }
 }

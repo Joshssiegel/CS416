@@ -12,7 +12,7 @@
 
 //Add any important includes here which you may need
 
-#define PGSIZE (4096*16)
+#define PGSIZE (4096)
 #define MAX_MEMSIZE (3*1024*1024*1024+1024*1024*750)//758 causes seg fault
 #define MEMSIZE (3*1024*1024*1024+1024*1024*750)//758 causes seg fault
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
@@ -41,6 +41,7 @@ unsigned int upper_bitmask;
 unsigned int tlb_bitmask;
 pde_t* page_dir;
 int* bitmap;
+
 
 struct tlb {
     //fill this in. this structure will represent a tlb.
