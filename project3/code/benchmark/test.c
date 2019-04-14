@@ -19,9 +19,9 @@ void looptest(void* z){
   printf("Done thread %d\n",c_num);
 }
 void randomAccess(){
-  char *arr = a_malloc(3*1024*1024*1024+6969);
+  char *arr = a_malloc(3*1024*1024*1024+1024*1024*500);
   unsigned int r,i;
-  int numAccesses=1024;
+  int numAccesses=16;
   int upper=8*4096;
   int lower=0;
   unsigned int y = 0;
@@ -36,7 +36,7 @@ void randomAccess(){
   }
   printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
   printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
-
+  a_free(arr,3*1024*1024*1024+1024*1024*500);
 }
 void sequentialAccess(){
   char *arr = a_malloc(3*1024*1024*1024+1024*1024*500);
@@ -55,6 +55,7 @@ void sequentialAccess(){
   }
   printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
   printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
+  a_free(arr,3*1024*1024*1024+1024*1024*500);
 
 }
 int main() {
@@ -71,7 +72,7 @@ int main() {
     //return;
 
     printf("Addresses of the Allocations: 0x%x, 0x%x, 0x%x\n", (int)a, (int)b, (int)c);
-    int mat_size=5;
+    int mat_size=2;
     printf("Storing some integers in the array to make a 5x5 matrix\n");
     for (int i = 0; i < mat_size; i++) {
         for (int j = 0; j < mat_size; j++) {
@@ -116,8 +117,8 @@ int main() {
         printf("The allocation free works\n");
     else
         printf("The allocation free does not work\n");
-    a_free(a, 4*100);*/
-
+    a_free(a, 4*100);
+*/
 /*
 printf("=====================================================\n\n");
 */
@@ -216,7 +217,7 @@ printf("=====================================================\n\n");
       printf("Joined thread (%d)\n", loop);
     }
     printf("Threads have joined\n");*/
-    randomAccess();
-    //sequentialAccess();
+     // randomAccess();
+   sequentialAccess();
     return 0;
   }

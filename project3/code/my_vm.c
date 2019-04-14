@@ -8,6 +8,11 @@ int log_2(int x){
   }
   return ans ;
 }
+unsigned int getNextPowerOfTwo(int x){
+  unsigned int next=pow(2,ceil(log(x)/log(2)));
+  printf("next power of 2 of %d is %d\n",x,next);
+  return next;
+}
 void *unoffset (void *va){
   if(va<20){
     printf("Bad Address. Cannot process. Returning -1\n");
@@ -26,10 +31,10 @@ int checkAllocated(void *va, int size){
   pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
   //count pages
   do{
-    pa[counter]=translate(page_dir, va+PGSIZE*counter);
-    // printf("found translation virtual 0x%x to physical 0x%x\n",va+PGSIZE*counter,pa[counter] );
+    pa[counter]=translate(page_dir, va+virt_page_size*counter);
+    // printf("found translation virtual 0x%x to physical 0x%x\n",va+virt_page_size*counter,pa[counter] );
     if(pa[counter]==NULL){
-      printf("!!! Virtual address: 0x%X was not allocated.\n",va+PGSIZE*counter);
+      printf("!!! Virtual address: 0x%X was not allocated.\n",va+virt_page_size*counter);
       free(pa);
       return -1;
     }
@@ -40,7 +45,7 @@ int checkAllocated(void *va, int size){
   int i=0;
   int pageNums[counter];
   for(i=0;i<counter;i++){
-    int offset=getPageOffset(va+i*PGSIZE);
+    int offset=getPageOffset(va+i*virt_page_size);
     //printf("difference from base%d\n",(int)pa[i]);
     pageNums[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
     //printf("testing page number: %d\n",pageNums[i]);
@@ -59,7 +64,7 @@ int getOptimalVacantPages(int pagesToAllocate){//returns index of starting page
   // bitmap
   int i = 0;
   int counter = 0;
-  int leastRegionFound = numPages+2;
+  int leastRegionFound = numPages+1;
   int index = -1;
 
   for(i=0; i<numPages; i++){
@@ -140,18 +145,30 @@ void set_physical_mem() {
     printf("total bits being used: %d\n",numTotalBits);
     numPages=(int)ceil((mem_size)/(PGSIZE));
     printf("num pages: %d\n",numPages);
-    numPagesBits=(int)ceil(log2(numPages));
+
     numOffsetBits = (int)ceil(log2(PGSIZE));
+    printf("Num offset bits: %d\n",numOffsetBits);
+    numPagesBits=(int)(numTotalBits-numOffsetBits);
+    printf("Num page bits: %d\n",numPagesBits);
+
     numPageDirBits = numPagesBits/2; //Floor division
+    printf("Num page dir bits: %d\n",numPageDirBits);
+
     numPageTableBits = numPagesBits - numPageDirBits;
+    printf("numPageTableBits: %d\n",numPageTableBits);
     numTLBBits= (int)ceil(log2(TLB_SIZE));
     numDirEntries=pow(2,numPageDirBits);
     numTableEntries=pow(2,numPageTableBits);
     lower_bitmask= (int) pow(2,numOffsetBits)-1;
     middle_bitmask= (int) (pow(2, numPageTableBits)-1 ) << numOffsetBits;
     upper_bitmask=(int) (pow(2, numPageDirBits)-1 ) << (numOffsetBits+numPageTableBits);
+    printf("loer bitmask: 0x%X\n",lower_bitmask);
+    printf("middle bitmask: 0x%X\n",middle_bitmask);
+    printf("upper bitmask: 0x%X\n",upper_bitmask);
     tlb_bitmask=(int) (pow(2,numTLBBits)-1)<<(numOffsetBits);
     printf("tlb bitmask: 0x%X\n",tlb_bitmask);
+    virt_page_size=getNextPowerOfTwo(PGSIZE);
+
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) calloc(numDirEntries,PAGETABLEENTRYSIZE);
     int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
@@ -190,9 +207,9 @@ pte_t * translate(pde_t *pgdir, void *va)
     unsigned int page_table_index = getTableIndex(va);
     //get index of page directory;
     unsigned int page_directory_index = getDirIndex(va);
-    // printf("page offset: 0x%X\n",page_offset);
-    // printf("page table index: 0x%X\n",page_table_index);
-    // printf("page directory index: 0x%X\n",page_directory_index);
+      // printf("page offset: 0x%X\n",page_offset);
+      // printf("page table index: 0x%X\n",page_table_index);
+      // printf("page directory index: 0x%X\n",page_directory_index);
     pde_t *addrOfPageDirEntry = pgdir + page_directory_index;
     pthread_mutex_lock(&lock);
     if(*addrOfPageDirEntry==NULL){
@@ -222,10 +239,11 @@ int page_map(pde_t *pgdir, void *va, void *pa)
       printf("page directory not set, returning -1\n");
       return -1;
     }
+    va=unoffset(va);
     //extract the directory index from the address
     unsigned int directory_index=getDirIndex(va);
     //pthread_mutex_lock(&lock);
-
+    // printf("directory_index: 0x%X\n",directory_index);
     //if the table at the index has not been initialized
     if(pgdir[directory_index]==0){
       //create the page table;
@@ -238,6 +256,10 @@ int page_map(pde_t *pgdir, void *va, void *pa)
     //if this page table entry isn't mapped to anything yet, map it to the physical addr
     if(page_table[table_index]==0){
       page_table[table_index]=(pte_t)pa;
+    }
+    else{
+      printf("Can't map to something that already is translated at table index %d\n",table_index);
+      printf("what is there already: 0x%X\n",page_table[table_index]);
     }
     //pthread_mutex_unlock(&lock);
 
@@ -310,12 +332,17 @@ void* a_malloc(unsigned int num_bytes) {
       set_physical_mem();
     }
     // Step 2) Convert num_bytes to allocate into numPages to allocate
-    unsigned int pages_to_allocate=ceil(num_bytes/PGSIZE);
+    // unsigned int pages_to_allocate=ceil((float)num_bytes/(float)PGSIZE);
+    // unsigned int pages_to_allocate=((int)(num_bytes%PGSIZE)==0)?ceil(num_bytes/PGSIZE):num_bytes/PGSIZE+1;
+    unsigned int pages_to_allocate=(int)ceil((num_bytes)/(PGSIZE));
+
+    printf("number Pages to allocate: %d\n",pages_to_allocate);
+
     // printf("Lock!\n" );
 
     // Step 3) Get Shortest Continuous Memory Region
     int pageIndex=getOptimalVacantPages(pages_to_allocate);
-    // printf("PI!\n" );
+    printf("Page index to malloc %d pages: %d\n",pages_to_allocate,pageIndex );
 
     if(pageIndex==-1){
       printf("!!! No space to allocate. Returning NULL\n");
@@ -331,12 +358,13 @@ void* a_malloc(unsigned int num_bytes) {
 
     // Step 5) Choose the virtual addr and map it to the physical pages.
     //Virtual address = OFFSET + PGSIZE*INDEX_OF_ALLOCATED_PAGE
-    void* va=(void*) (PGSIZE*pageIndex + OFFSET);
+    void* va=(void*) (virt_page_size*pageIndex + OFFSET);
+
     //Physical Page to allocate
     void* pa=physical_mem+PGSIZE*pageIndex;
     for(i=0;i<pages_to_allocate;i++){
-      int status=page_map(page_dir, va+PGSIZE*i, pa+PGSIZE*i);
-      // printf("mapped!\n" );
+      int status=page_map(page_dir, va+virt_page_size*i, pa+PGSIZE*i);
+      // printf("mapped 0x%X to 0x%X\n",va+virt_page_size*i, pa+PGSIZE*i );
 
       if(status==-1){
         printf("!!! Error mapping page. Returning NULL \n");
@@ -351,7 +379,7 @@ void* a_malloc(unsigned int num_bytes) {
     return va;
 }
 
-void a_free(void *va, int size) {
+void a_free(void *va, unsigned int size) {
     //free the page table entries starting from this virtual address and uptill size
     //mark the pages which you recently free
     //only free if the memory from va till va+size is valid
@@ -365,9 +393,10 @@ void a_free(void *va, int size) {
     pte_t** pa=malloc( (size/PGSIZE+2)*sizeof(pte_t*)  );
     int counter=0;
     do{
-      pa[counter]=translate(page_dir, va+PGSIZE*counter);
+      printf("checking if there is a translation for: 0x%x\n",va+virt_page_size*counter);
+      pa[counter]=translate(page_dir, va+virt_page_size*counter);
       if(pa[counter]==NULL){
-        printf("!!! Virtual address: 0x%X was not allocated. Returning and not freeing.\n",va+PGSIZE*counter);
+        printf("!!! Virtual address: 0x%X was not allocated. Returning and not freeing.\n",va+virt_page_size*counter);
         return;
       }
       counter+=1;
@@ -378,7 +407,7 @@ void a_free(void *va, int size) {
     int i=0;
     int page_nums_to_free[counter];
     for(i=0;i<counter;i++){
-      int offset=getPageOffset(va+i*PGSIZE);
+      int offset=getPageOffset(va+i*virt_page_size);
       page_nums_to_free[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
       if(testBit(page_nums_to_free[i])==0){
         //should never get here
@@ -392,7 +421,7 @@ void a_free(void *va, int size) {
     //We are guaranteed that there was a translation and that the pages were allocated
     //Unmap the translations and mark them as unallocated in the bitmap
     for(i=0;i<counter;i++){
-      int status=page_unmap(page_dir,va+i*PGSIZE);
+      int status=page_unmap(page_dir,va+i*virt_page_size);
       if(status==-1){
         printf("!!! Tried to unmap unallocated page. Returning\n");
         pthread_mutex_unlock(&lock);
@@ -502,7 +531,7 @@ pte_t* searchTLB(pte_t* va){
     tlb_store->hits+=1;
 
     //delete page_num, its just for debugging
-    int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+    //int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
 
     //printf("TLB HIT! Physical address 0x%X     page number: %d\n",physical_address,page_num);
 
@@ -516,7 +545,7 @@ pte_t* searchTLB(pte_t* va){
     tlb_store->translations[tlb_index]=physical_address;
 
     //delete page_num, its just for debugging
-    int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+    //int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
 
     //printf("TLB MISS! Physical Address 0x%X    page number:%d\n",physical_address,page_num);
     tlb_store->misses+=1;

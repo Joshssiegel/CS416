@@ -12,9 +12,9 @@
 
 //Add any important includes here which you may need
 
-#define PGSIZE (4096+394)
+#define PGSIZE (4096*16) //MUST BE POWER OF TWO
 #define MAX_MEMSIZE (3*1024*1024*1024+1024*1024*500)//758 causes seg fault
-#define MEMSIZE (3*1024*1024*1024+6969)//758 causes seg fault
+#define MEMSIZE (3*1024*1024*1024+1024*1024*500)//758 causes seg fault
 #define PAGETABLEENTRYSIZE (sizeof(pte_t))
 #define TLB_SIZE 16   //number of TLB entries
 #define OFFSET 32 // offset for Virtual Address
@@ -25,6 +25,7 @@ typedef unsigned long pte_t;
 typedef unsigned long pde_t;
 
 // unsigned short pageTableEntrySize = 4;
+unsigned int virt_page_size;
 char* physical_mem;
 unsigned int numPages;
 unsigned int numDirEntries;
@@ -66,7 +67,7 @@ int page_unmap(pde_t *pgdir, void *va);
 bool check_in_tlb(void *va);
 void put_in_tlb(void *va, void *pa);
 void *a_malloc(unsigned int num_bytes);
-void a_free(void *va, int size);
+void a_free(void *va, unsigned int size);
 void put_value(void *va, void *val, int size);
 void get_value(void *va, void *val, int size);
 void mat_mult(void *mat1, void *mat2, int size, void *answer);
