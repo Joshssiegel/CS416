@@ -37,7 +37,7 @@ void randomAccess(){
   }
   printf("TLB HIT RATE: %.4f\n",tlb_store->hits/(tlb_store->hits+tlb_store->misses));
   printf("TLB MISS RATE: %.4f\n",tlb_store->misses/(tlb_store->hits+tlb_store->misses));
-  a_free(arr,1*1024*1024*1024);
+  a_free(arr,3*1024*1024*1024+1024*1024*500);
 }
 void sequentialAccess(){
   char *arr = a_malloc(3*1024*1024*1024+1024*1024*500);
