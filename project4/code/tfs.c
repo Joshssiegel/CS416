@@ -30,6 +30,8 @@ char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
 int disk;
+bitmap_t inode_bitmap;
+bitmap_t data_bitmap;
 
 /*
  * Get available inode number from bitmap
@@ -145,7 +147,6 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 int tfs_mkfs() {
 
 	// Call dev_init() to initialize (Create) Diskfile
-	printf("diskfile path is: %s\n",diskfile_path);
 	dev_init(diskfile_path);
 	//Open the diskfile
 	disk=dev_open(diskfile_path);
@@ -153,27 +154,47 @@ int tfs_mkfs() {
 		printf("error opening the disk. Exiting program.\n");
 		exit(-1);
 	}
+
 	// write superblock information
 	struct superblock* sb=malloc(sizeof(struct superblock));
 	sb->magic_num=MAGIC_NUM;
-	sb->max_inum=0;
-	sb->max_dnum=0;
-	sb->i_bitmap_blk=0;
-	sb->d_bitmap_blk=0;
-	sb->i_start_blk=0;
-	sb->d_start_blk=0;
+	sb->max_inum=MAX_INUM;
+	sb->max_dnum=MAX_DNUM;
+
+	//store inode bitmap in block 1 (0 for superblock)
+	sb->i_bitmap_blk=1;
+	//store data bitmap in block 2
+	sb->d_bitmap_blk=2;
+	//store inode blocks starting in block 3
+	sb->i_start_blk=3;
+	//TODO: change if we store more than one inode per block
+	sb->d_start_blk=sb->i_start_blk+sb->max_inum;
+	//write the superblock
   if(bio_write(0,sb)<0){
 		printf("error writing the superblock to the disk. Exiting program.\n");
 		exit(-1);
 	}
+
 	// initialize inode bitmap
-
+	//TODO: Do we need to ceil?
+	inode_bitmap=calloc(1,sb->max_inum/8);
 	// initialize data block bitmap
-
+	data_bitmap=calloc(1,sb->max_dnum/8);
 	// update bitmap information for root directory
-
+	set_bitmap(inode_bitmap,0);
 	// update inode for root directory
-
+	struct inode* root_inode = calloc(1,sizeof(struct inode));
+	root_inode->ino=1;				/* inode number */
+	root_inode->valid=1;				/* validity of the inode */
+	root_inode->size=0;//TODO: change to size of root dir				/* size of the file */
+	root_inode->type=TFS_DIRECTORY;				/* type of the file */
+	root_inode->link=1;				/* link count */
+	//TODO: What do we do for vstat?
+	struct stat* vstat=malloc(sizeof(struct stat));
+	vstat->st_mode   = S_IFDIR | 0755;
+	vstat->st_nlink  = 2;
+	time(&vstat->st_mtime);
+	root_inode->vstat=*vstat;			/* inode stat */
 	return 0;
 }
 
@@ -182,11 +203,18 @@ int tfs_mkfs() {
  * FUSE file operations
  */
 static void *tfs_init(struct fuse_conn_info *conn) {
+	printf("init************\n");
 
 	// Step 1a: If disk file is not found, call mkfs
-
+	disk=dev_open(diskfile_path);
+	if(disk==-1){
+		if(tfs_mkfs()!=0){
+			printf("error making disk\n");
+		}
+	}
   // Step 1b: If disk file is found, just initialize in-memory data structures
   // and read superblock from disk
+
 
 	return NULL;
 }
@@ -273,7 +301,7 @@ static int tfs_releasedir(const char *path, struct fuse_file_info *fi) {
 }
 
 static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-	printf("in tfs_create\n");
+	printf("***********************in tfs_create\n");
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
 
 	// Step 2: Call get_node_by_path() to get inode of parent directory
