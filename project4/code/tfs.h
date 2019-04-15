@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2019 CS416 Spring 2019
- *	
+ *
  *	Tiny File System
  *
  *	File:	tfs.h
@@ -19,7 +19,6 @@
 #define MAGIC_NUM 0x5C3A
 #define MAX_INUM 1024
 #define MAX_DNUM 16384
-
 
 struct superblock {
 	uint32_t	magic_num;			/* magic number */

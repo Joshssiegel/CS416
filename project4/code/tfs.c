@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2019 CS416 Spring 2019
- *	
+ *
  *	Tiny File System
  *
  *	File:	tfs.c
@@ -29,36 +29,37 @@
 char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
+int disk;
 
-/* 
+/*
  * Get available inode number from bitmap
  */
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
-	
+
 	// Step 2: Traverse inode bitmap to find an available slot
 
-	// Step 3: Update inode bitmap and write to disk 
+	// Step 3: Update inode bitmap and write to disk
 
 	return 0;
 }
 
-/* 
+/*
  * Get available data block number from bitmap
  */
 int get_avail_blkno() {
 
 	// Step 1: Read data block bitmap from disk
-	
+
 	// Step 2: Traverse data block bitmap to find an available slot
 
-	// Step 3: Update data block bitmap and write to disk 
+	// Step 3: Update data block bitmap and write to disk
 
 	return 0;
 }
 
-/* 
+/*
  * inode operations
  */
 int readi(uint16_t ino, struct inode *inode) {
@@ -75,16 +76,16 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the block number where this inode resides on disk
-	
+
 	// Step 2: Get the offset in the block where this inode resides on disk
 
-	// Step 3: Write inode to disk 
+	// Step 3: Write inode to disk
 
 	return 0;
 }
 
 
-/* 
+/*
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
@@ -102,7 +103,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t name_len) {
 
 	// Step 1: Read dir_inode's data block and check each directory entry of dir_inode
-	
+
 	// Step 2: Check if fname (directory name) is already used in other entries
 
 	// Step 3: Add directory entry in dir_inode's data block and write to disk
@@ -119,7 +120,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 
 	// Step 1: Read dir_inode's data block and checks each directory entry of dir_inode
-	
+
 	// Step 2: Check if fname exist
 
 	// Step 3: If exist, then remove it from dir_inode's data block and write to disk
@@ -127,26 +128,44 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	return 0;
 }
 
-/* 
+/*
  * namei operation
  */
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
-	
+
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
 
 	return 0;
 }
 
-/* 
+/*
  * Make file system
  */
 int tfs_mkfs() {
 
 	// Call dev_init() to initialize (Create) Diskfile
-
+	printf("diskfile path is: %s\n",diskfile_path);
+	dev_init(diskfile_path);
+	//Open the diskfile
+	disk=dev_open(diskfile_path);
+	if(disk==-1){
+		printf("error opening the disk. Exiting program.\n");
+		exit(-1);
+	}
 	// write superblock information
-
+	struct superblock* sb=malloc(sizeof(struct superblock));
+	sb->magic_num=MAGIC_NUM;
+	sb->max_inum=0;
+	sb->max_dnum=0;
+	sb->i_bitmap_blk=0;
+	sb->d_bitmap_blk=0;
+	sb->i_start_blk=0;
+	sb->d_start_blk=0;
+  if(bio_write(0,sb)<0){
+		printf("error writing the superblock to the disk. Exiting program.\n");
+		exit(-1);
+	}
 	// initialize inode bitmap
 
 	// initialize data block bitmap
@@ -159,7 +178,7 @@ int tfs_mkfs() {
 }
 
 
-/* 
+/*
  * FUSE file operations
  */
 static void *tfs_init(struct fuse_conn_info *conn) {
@@ -225,7 +244,7 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 	// Step 5: Update inode for target directory
 
 	// Step 6: Call writei() to write inode to disk
-	
+
 
 	return 0;
 }
@@ -254,7 +273,7 @@ static int tfs_releasedir(const char *path, struct fuse_file_info *fi) {
 }
 
 static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
-
+	printf("in tfs_create\n");
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
 
 	// Step 2: Call get_node_by_path() to get inode of parent directory
@@ -380,4 +399,3 @@ int main(int argc, char *argv[]) {
 
 	return fuse_stat;
 }
-
