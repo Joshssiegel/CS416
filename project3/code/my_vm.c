@@ -47,7 +47,7 @@ int checkAllocated(void *va, int size){
   for(i=0;i<counter;i++){
     int offset=getPageOffset(va+i*virt_page_size);
     //printf("difference from base%d\n",(int)pa[i]);
-    pageNums[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
+    pageNums[i]=((unsigned int)pa[i]-offset-(unsigned int)physical_mem)/PGSIZE;
     //printf("testing page number: %d\n",pageNums[i]);
     if(testBit(pageNums[i])==0){
       printf("!!! Page %d was not allocated.\n", pageNums[i]);
@@ -103,20 +103,20 @@ int testBit(int bit){
   return ( (bitmap[bit/32] & (1 << (bit%32) )) != 0 );
 }
 unsigned int getPageOffset(void* va){
-  unsigned int page_offset = ((int)va)&lower_bitmask;
+  unsigned int page_offset = ((unsigned int)va)&lower_bitmask;
   return page_offset;
 }
 unsigned int getTableIndex(void* va){
-  unsigned int page_table_index = (((int)va)&middle_bitmask) >> numOffsetBits;
+  unsigned int page_table_index = (((unsigned int)va)&middle_bitmask) >> numOffsetBits;
   return page_table_index;
 }
 unsigned int getDirIndex(void* va){
-  unsigned int page_directory_index = (((int)va)&upper_bitmask) >> (numOffsetBits+numPageTableBits);
+  unsigned int page_directory_index = (((unsigned int)va)&upper_bitmask) >> (numOffsetBits+numPageTableBits);
   return page_directory_index;
 }
 
 unsigned int getTLBIndex(void* va){
-  unsigned int tlb_index = (((int)va)&tlb_bitmask) >> (numOffsetBits);
+  unsigned int tlb_index = (((unsigned int)va)&tlb_bitmask) >> (numOffsetBits);
   return tlb_index;
 }
 
@@ -126,11 +126,12 @@ void set_physical_mem() {
     unsigned long max_mem_size=MAX_MEMSIZE;
     if(mem_size>max_mem_size || mem_size<0){
       mem_size=MAX_MEMSIZE;
-       printf("asked to allocate %u so setting it to Max=%u\n",mem_size,max_mem_size);
+       printf("Asked to allocate %u, which is greater than Max Memory available, so setting it to Max = %u\n",mem_size,max_mem_size);
     }
     else{
+      ;
       // mem_size=MEMSIZE;
-      printf("physical mem size =%u < max=%u\n",mem_size, max_mem_size);
+      // printf("physical mem size =%u < max=%u\n",mem_size, max_mem_size);
     }
     physical_mem =(char*) mmap(NULL, mem_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
     // physical_mem =(char*) mmap(NULL, MEMSIZE, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANON,  -1, 0);
@@ -139,18 +140,14 @@ void set_physical_mem() {
       perror("error: ");
       exit(-1);
     }
-    printf("physical mem located at: 0x%X\n",physical_mem);
+    // printf("physical mem located at: 0x%X\n",physical_mem);
     //Calculate bits (needed and create bitmasks needed for translation
     numTotalBits=(int)ceil(log2(mem_size));
-    printf("total bits being used: %d\n",numTotalBits);
+    // printf("total bits being used: %d\n",numTotalBits);
     numPages=(int)ceil((mem_size)/(PGSIZE));
-    printf("num pages: %d\n",numPages);
-
+    // numPagesBits=(int)ceil(log2(numPages));
     numOffsetBits = (int)ceil(log2(PGSIZE));
-    printf("Num offset bits: %d\n",numOffsetBits);
     numPagesBits=(int)(numTotalBits-numOffsetBits);
-    printf("Num page bits: %d\n",numPagesBits);
-
     numPageDirBits = numPagesBits/2; //Floor division
     printf("Num page dir bits: %d\n",numPageDirBits);
 
@@ -166,14 +163,13 @@ void set_physical_mem() {
     printf("middle bitmask: 0x%X\n",middle_bitmask);
     printf("upper bitmask: 0x%X\n",upper_bitmask);
     tlb_bitmask=(int) (pow(2,numTLBBits)-1)<<(numOffsetBits);
-    printf("tlb bitmask: 0x%X\n",tlb_bitmask);
-    virt_page_size=getNextPowerOfTwo(PGSIZE);
-
+    // printf("tlb bitmask: 0x%X\n",tlb_bitmask);
     //initialize page directory to point to 2^(numbits) entries
     page_dir=(pde_t*) calloc(numDirEntries,PAGETABLEENTRYSIZE);
-    int numEntriesInBitmap=numPages%32==0?numPages/32: (numPages/32)+1;
+    int numEntriesInBitmap=(numPages%32)==0?ceil(numPages/32): (numPages/32)+1;
+    // printf("%s\n", );
     bitmap=(int*) calloc(numEntriesInBitmap,sizeof(int));
-    printf("bitmap initialized to size: %d\n", (numPages/32));
+    // printf("bitmap initialized to size: %d\n", (numPages/32));
     if (pthread_mutex_init(&lock, NULL) != 0)
     {
         printf("!!! Failed to initialize mutex\n");
@@ -189,7 +185,7 @@ void set_physical_mem() {
     for (i=0;i<TLB_SIZE;i++){
       tlb_store->virtual_tags[i]=-1;
     }
-    printf("done set physical mem\n");
+    // printf("done set physical mem\n");
 }
 
 pte_t * translate(pde_t *pgdir, void *va)
@@ -332,12 +328,11 @@ void* a_malloc(unsigned int num_bytes) {
       set_physical_mem();
     }
     // Step 2) Convert num_bytes to allocate into numPages to allocate
-    // unsigned int pages_to_allocate=ceil((float)num_bytes/(float)PGSIZE);
-    // unsigned int pages_to_allocate=((int)(num_bytes%PGSIZE)==0)?ceil(num_bytes/PGSIZE):num_bytes/PGSIZE+1;
-    unsigned int pages_to_allocate=(int)ceil((num_bytes)/(PGSIZE));
+    unsigned int pg_size = PGSIZE;
+    unsigned int pages_to_allocate=((int)(num_bytes%pg_size))==0 ? ceil(num_bytes/pg_size) : (num_bytes/pg_size)+1;
+    // unsigned int pages_to_allocate= ceil(num_bytes/pg_size);
 
-    printf("number Pages to allocate: %d\n",pages_to_allocate);
-
+    // pthread_mutex_lock(&lock);
     // printf("Lock!\n" );
 
     // Step 3) Get Shortest Continuous Memory Region
@@ -383,7 +378,10 @@ void a_free(void *va, unsigned int size) {
     //free the page table entries starting from this virtual address and uptill size
     //mark the pages which you recently free
     //only free if the memory from va till va+size is valid
-
+    if(size<=0){
+      printf("Cannot free memory of size: %d. This may be due to an integer overflow error.\n", size);
+      return;
+    }
     va = unoffset(va);
     if(va==-1){
       printf("!!! Virtual address is bad. Returning and not freeing.\n");
@@ -411,7 +409,7 @@ void a_free(void *va, unsigned int size) {
       page_nums_to_free[i]=((int)pa[i]-offset-(int)physical_mem)/PGSIZE;
       if(testBit(page_nums_to_free[i])==0){
         //should never get here
-        printf("!!! Page has a translation but was not allocated. Weird. Returning.\n");
+        printf("!!! Page (%d) has a translation but was not allocated. Weird. Returning.\n",page_nums_to_free[i]);
         pthread_mutex_unlock(&lock);
         free(pa);
         return;
@@ -427,7 +425,7 @@ void a_free(void *va, unsigned int size) {
         pthread_mutex_unlock(&lock);
         return;
       }
-      // printf("freed\n");
+      // printf("free pagenum: %d\n");
       clearBit(page_nums_to_free[i]);
 
     }
@@ -531,7 +529,7 @@ pte_t* searchTLB(pte_t* va){
     tlb_store->hits+=1;
 
     //delete page_num, its just for debugging
-    //int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+    unsigned int page_num=((unsigned int)physical_address-(unsigned int)physical_mem)/PGSIZE;
 
     //printf("TLB HIT! Physical address 0x%X     page number: %d\n",physical_address,page_num);
 
@@ -545,7 +543,7 @@ pte_t* searchTLB(pte_t* va){
     tlb_store->translations[tlb_index]=physical_address;
 
     //delete page_num, its just for debugging
-    //int page_num=((int)physical_address-(int)physical_mem)/PGSIZE;
+    unsigned int page_num=((unsigned int)physical_address-(unsigned int)physical_mem)/PGSIZE;
 
     //printf("TLB MISS! Physical Address 0x%X    page number:%d\n",physical_address,page_num);
     tlb_store->misses+=1;
