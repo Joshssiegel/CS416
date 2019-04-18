@@ -182,7 +182,7 @@ int tfs_mkfs() {
  * FUSE file operations
  */
 static void *tfs_init(struct fuse_conn_info *conn) {
-
+	printf("INIT\n");
 	// Step 1a: If disk file is not found, call mkfs
 
   // Step 1b: If disk file is found, just initialize in-memory data structures
