@@ -203,12 +203,8 @@ int tfs_mkfs() {
  * FUSE file operations
  */
 static void *tfs_init(struct fuse_conn_info *conn) {
-<<<<<<< HEAD
-	printf("INIT\n");
-=======
 	printf("init************\n");
 
->>>>>>> c1e0947354b587e81909942542767ec8f42041c4
 	// Step 1a: If disk file is not found, call mkfs
 	disk=dev_open(diskfile_path);
 	if(disk==-1){
