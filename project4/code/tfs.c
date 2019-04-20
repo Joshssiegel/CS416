@@ -100,7 +100,7 @@ int readi(uint16_t ino, struct inode *inode) {
 
   // Step 1: Get the inode's on-disk block number
 	//get the block num by adding starting block by floor of inode num / inodes per block
-	int blockNum=SB->i_start_blk+inum/inodes_per_block;
+	int blockNum=SB->i_start_blk+ino/inodes_per_block;
 	void* iBlock = malloc(BLOCK_SIZE);
 	//read in the entire block of inodes (there are multiple inodes per block)
 	retstatus=bio_read(blockNum,iBlock);
@@ -110,12 +110,12 @@ int readi(uint16_t ino, struct inode *inode) {
 	}
   // Step 2: Get offset of the inode in the inode on-disk block
 	//get the offset in the block where our inode starts
-	int offset=(inum%inodes_per_block)*sizeof(struct inode);
+	int offset=(ino%inodes_per_block)*sizeof(struct inode);
 	//get the starting address of the inode
 	struct inode* inodePtr=(struct inode*)malloc(sizeof(struct inode));//iBlock+offset;
 	memcpy(inodePtr, iBlock+offset, sizeof(struct inode));
 	free(iBlock);
-	printf("Asked for inode number %d in block %d, found inode number %d\n", inum, blockNum, inodePtr->ino);
+	printf("Asked for inode number %d in block %d, found inode number %d\n", ino, blockNum, inodePtr->ino);
   // Step 3: Read the block from disk and then copy into inode structure
 	*inode=*inodePtr;
 
