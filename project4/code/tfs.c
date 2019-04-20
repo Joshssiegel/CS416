@@ -168,7 +168,8 @@ int tfs_mkfs() {
 	//store inode blocks starting in block 3
 	sb->i_start_blk=3;
 	//TODO: change if we store more than one inode per block
-	sb->d_start_blk=sb->i_start_blk+sb->max_inum;
+	//TODO: Ceil or naw?
+	sb->d_start_blk=sb->i_start_blk+sb->max_inum+1;
 	//write the superblock
   if(bio_write(0,sb)<0){
 		printf("error writing the superblock to the disk. Exiting program.\n");
@@ -186,13 +187,11 @@ int tfs_mkfs() {
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
 	root_inode->ino=1;				/* inode number */
 	root_inode->valid=1;				/* validity of the inode */
-	root_inode->size=0;//TODO: change to size of root dir				/* size of the file */
+	root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
 	root_inode->type=TFS_DIRECTORY;				/* type of the file */
 	root_inode->link=1;				/* link count */
-	//TODO: What do we do for vstat?
+	//Update access time within vstat?
 	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFDIR | 0755;
-	vstat->st_nlink  = 2;
 	time(&vstat->st_mtime);
 	root_inode->vstat=*vstat;			/* inode stat */
 	return 0;
