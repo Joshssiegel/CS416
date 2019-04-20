@@ -106,7 +106,8 @@ int writei(uint16_t ino, struct inode *inode) {
 	int offset=(ino%inodes_per_block)*sizeof(struct inode);
 	// Step 3: Write inode to disk
 	//overwrite the inode at the offset in memory
-	*(inodeBlock+offset)=*inode;
+	struct inode* addrOfInode=inodeBlock+offset;
+	*addrOfInode=*inode;
 	//write it back to disk
 	bio_write(blockNum,inodeBlock);
 	return 0;
