@@ -38,14 +38,17 @@ int inodes_per_block;
 struct inode* getInode(int inum){
 	//get the block num by adding starting block by floor of inode num / inodes per block
 	int blockNum=SB->i_start_blk+inum/inodes_per_block;
-	void* iBlock;
+	void* iBlock = malloc(BLOCK_SIZE);
 	//read in the entire block of inodes (there are multiple inodes per block)
 	bio_read(blockNum,iBlock);
 	//get the offset in the block where our inode starts
 	int offset=(inum%inodes_per_block)*sizeof(struct inode);
 	//get the starting address of the inode
-	struct inode* inodePtr=iBlock+offset;
+	struct inode* inodePtr=(struct inode*)malloc(sizeof(struct inode));//iBlock+offset;
+	memcpy(inodePtr, iBlock+offset, sizeof(struct inode));
+	free(iBlock);
 	printf("Asked for inode number %d in block %d, found inode number %d\n", inum, blockNum, inodePtr->ino);
+
 	return inodePtr;
 }
 
@@ -238,7 +241,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	bio_read(0,(void*) SB);
 	printf("Superblock inode start location: %d \n",SB->i_start_blk );
 	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
-	printf("inodes per block: %d with an inode size of %d\n",inodes_per_block,sizeof(struct inode));
+	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
 	return NULL;
 }
 
