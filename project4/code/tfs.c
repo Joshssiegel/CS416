@@ -171,11 +171,54 @@ int writei(uint16_t ino, struct inode *inode) {
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
 
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
-
+	struct inode* dir_inode=malloc(sizeof(struct inode));
+	int retstatus=readi(ino,dir_inode);
+	if(retstatus<0){
+		perror("error reading the directory's inode\n");
+		return retstatus;
+	}
   // Step 2: Get data block of current directory from inode
+	int* dir_inode_data=dir_inode->direct_ptr;
 
   // Step 3: Read directory's data block and check each directory entry.
   //If the name matches, then copy directory entry to dirent structure
+
+	//index of the direct pointer
+	int data_block_index=0;
+	//number of dir-entries per data block
+	int num_entries_per_data_block=BLOCK_SIZE/sizeof(struct dirent);
+	//the current dir entry to read from disk
+	struct dirent* data_block=calloc(1,BLOCK_SIZE);
+	//get the index of the dir-entry within the data block
+	int dirent_index=0;
+
+	//Check every dir_entry in every data block to see if name exists already
+	for (data_block_index=0;data_block_index<16;data_block_index++){
+		//check the data bitmap to see if this data block is empty
+		if(dir_inode_data[data_block_index]==-1){
+			//skip to next data block
+			continue;
+		}
+		//read the allocated data block containing dir entries
+		bio_read(SB->d_start_blk+dir_inode_data[data_block_index],data_block);
+		//iterate through all the dir entries in this data block
+		for(dirent_index=0;dirent_index<num_entries_per_data_block;dirent_index++){
+			//get next dir entry (pointer addition is increments of dir entry)
+			struct dirent* dir_entry=data_block+dirent_index;
+			//if the directory entry is either NULL or invalid, it can be overwritten
+			if(dir_entry==NULL || dir_entry->valid==0){
+				//continue because we don't care about null or invalid entries' names
+				continue;
+			}
+			//compare the name of the entry with the new entry name
+			if(strcmp(dir_entry->name,fname)==0){
+				printf("Found %s\n",fname);
+				*dirent=*dir_entry;
+				return 0;
+			}
+
+		}
+	}
 
 	return 0;
 }
@@ -183,16 +226,133 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t name_len) {
 
 	// Step 1: Read dir_inode's data block and check each directory entry of dir_inode
+	//get the direct pointers of the parent's data blocks
+	int* dir_inode_data=dir_inode.direct_ptr;
 
 	// Step 2: Check if fname (directory name) is already used in other entries
+	//index of the direct pointer
+	int data_block_index=0;
+	//number of dir-entries per data block
+	int num_entries_per_data_block=BLOCK_SIZE/sizeof(struct dirent);
+	//the current dir entry to read from disk
+	struct dirent* data_block=calloc(1,BLOCK_SIZE);
+	//get the index of the dir-entry within the data block
+	int dirent_index=0;
+	//boolean flag to see if there is an empty dir-entry within a data block
+	char found_empty_slot=0;
+	//unallocated data block index
+	int empty_unallocated_block=-1;
+	// index of block where there is an empty dir-entry
+	int empty_block_index=0;
+	// index of empty dir-entry
+	int empty_dirent_index=0;
 
+	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
+	bio_read(DATA_BITMAP_BLOCK, data_bitmap);
+	//Check every dir_entry in every data block to see if name exists already
+	for (data_block_index=0;data_block_index<16;data_block_index++){
+		//check the data bitmap to see if this data block is empty
+		if(dir_inode_data[data_block_index]==-1){
+			//TODO: make sure to initialize all direct_ptrs to -1 when creating the directory
+			//If empty, then we set the unallocated block to this index and skip to the next data block
+			if(empty_unallocated_block==-1){
+				empty_unallocated_block = data_block_index;
+			}
+			//skip to next data block
+			continue;
+		}
+		//read the allocated data block containing dir entries
+		bio_read(SB->d_start_blk+dir_inode_data[data_block_index],data_block);
+		//iterate through all the dir entries in this data block
+		for(dirent_index=0;dirent_index<num_entries_per_data_block;dirent_index++){
+			//get next dir entry (pointer addition is increments of dir entry)
+			struct dirent* dir_entry=data_block+dirent_index;
+			//if the directory entry is either NULL or invalid, it can be overwritten
+			if(dir_entry==NULL || dir_entry->valid==0){
+				//found an empty slot in an allocated block. Takes priority over unallocated block.
+				if(found_empty_slot==0){
+					found_empty_slot=1;
+					empty_block_index=data_block_index;
+					empty_dirent_index=dirent_index;
+				}
+				//continue because we don't care about null or invalid entries' names
+				continue;
+			}
+			//compare the name of the entry with the new entry name
+			if(strcmp(dir_entry->name,fname)==0){
+				printf("the name %s already exists, NOT overwriting.\n",fname);
+				return -1;
+			}
+			else{
+				printf("%s doesn't equal %s\n",dir_entry->name,fname);
+			}
+		}
+	}
 	// Step 3: Add directory entry in dir_inode's data block and write to disk
-
+	//create new dir entry
+	struct dirent* new_entry=malloc(sizeof(struct dirent));
+	//set it to be valid
+	new_entry->valid=1;
+	//inode was given
+	new_entry->ino=f_ino;
+	//copy the string name that was given
+	strcpy(new_entry->name,fname);
+	//empty dir-entry in allocated data block takes priority over unallocated data block
+	if(found_empty_slot==1){
+		//read the data block that contains an empty dir-entry
+		bio_read(SB->d_start_blk+dir_inode_data[empty_block_index],data_block);
+		//store the new entry in the empty entry
+		data_block[empty_dirent_index]=*new_entry;
+		//write back to disk
+		bio_write(SB->d_start_blk+dir_inode_data[empty_block_index],data_block);
+		//free the locally stored entry
+		free(new_entry);
+	}
 	// Allocate a new data block for this directory if it does not exist
-
+	else if(empty_unallocated_block>-1){
+		//just double checking with this if statement
+		if(dir_inode_data[empty_unallocated_block]==-1){//this is an unallocated block
+			//get next available block num and set the bit to 1
+			int block_num = get_avail_blkno();// get_avail_blkno will set the data_bitmap to 1 for this block
+			//make the inode's direct pointer point to this data block
+			dir_inode_data[empty_unallocated_block]=block_num;
+			//malloc space for the new block
+			struct dirent* new_data_block=malloc(BLOCK_SIZE);
+			//set the first entry of the new data block to store the new entry
+			*new_data_block=*new_entry;
+			//write to disk
+			bio_write(SB->d_start_blk+block_num,new_data_block);
+			//don't comment the free
+			free(new_entry);
+		}
+		else{
+			printf("We done messed up.\n");
+		}
+	}
+	else{
+		//No free data blocks in this directory
+		printf("No free data blocks in directory.\n");
+		//remove the bit for the inode that was passed in since we aren't creating it.
+		bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
+		//update the bitmap
+		bio_read(INODE_BITMAP_BLOCK, inode_bitmap);
+		unset_bitmap(inode_bitmap,f_ino);
+		bio_write(INODE_BITMAP_BLOCK, inode_bitmap);
+		return -1;
+	}
 	// Update directory inode
 
+	//update parent inode
+	int parent_ino=dir_inode.ino;
+	struct inode* parent_inode=malloc(sizeof(struct inode));
+	readi(parent_ino,parent_inode);
+	//update size of parent directory
+	parent_inode->size+=sizeof(struct dirent);
+	//update access time of parent
+	time(& (parent_inode->vstat.st_mtime));
 	// Write directory entry
+	writei(parent_ino,parent_inode);
+
 
 	return 0;
 }
@@ -204,7 +364,8 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	// Step 2: Check if fname exist
 
 	// Step 3: If exist, then remove it from dir_inode's data block and write to disk
-
+	//TODO: If you remove an entire data block, set it's bit to 0 and
+	//TODO: the direct pointer to -1 !!!
 	return 0;
 }
 
@@ -272,10 +433,14 @@ int tfs_mkfs() {
 	root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
 	root_inode->type=TFS_DIRECTORY;				/* type of the file */
 	root_inode->link=1;				/* link count */
+	int i=0;
+	for(i=0;i<16;i++){
+		root_inode->direct_ptr[i]=-1;
+	}
 	//Update access time within vstat?
 	struct stat* vstat=malloc(sizeof(struct stat));
 	vstat->st_mode   = S_IFDIR | 0755;
-	time(&vstat->st_mtime);
+	time(& vstat->st_mtime);
 	root_inode->vstat=*vstat;			/* inode stat */
 	writei(0,root_inode);
 	return 0;
@@ -309,8 +474,6 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 
 	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
 	printf("\n------------TESTING-----------------\n");
-	int i=0;
-
 	struct inode* test_inode = calloc(1,sizeof(struct inode));
 	test_inode->ino=get_avail_ino();				/* inode number */
 	test_inode->valid=1;				/* validity of the inode */
@@ -374,6 +537,7 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 
 static int tfs_mkdir(const char *path, mode_t mode) {
 
+	//TODO: initialize all direct_ptrs to -1 when creating the directory
 	// Step 1: Use dirname() and basename() to separate parent directory path and target directory name
 
 	// Step 2: Call get_node_by_path() to get inode of parent directory
