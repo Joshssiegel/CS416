@@ -59,15 +59,15 @@ struct inode* getInode(int inum){
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
-	bitmap_t* inode_bitmap=malloc(sizeof(bitmap_t));
+	bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
 	bio_read(INODE_BITMAP_BLOCK, inode_bitmap);
 	// Step 2: Traverse inode bitmap to find an available slot
 	int i=0;
 	for(i=0;i<SB->max_inum;i++){
-		if(get_bitmap(*inode_bitmap,i)==0){
+		if(get_bitmap(inode_bitmap,i)==0){
 			printf("Available inode slot at inode num %d\n",i);
 			// Step 3: Update inode bitmap and write to disk
-			set_bitmap(*inode_bitmap,i);
+			set_bitmap(inode_bitmap,i);
 			bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
 			free(inode_bitmap);
 			return i;
@@ -86,15 +86,15 @@ int get_avail_blkno() {
 
 
 	// Step 1: Read data block bitmap from disk
-	bitmap_t* data_bitmap=malloc(sizeof(bitmap_t));
+	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
 	bio_read(DATA_BITMAP_BLOCK, data_bitmap);
 	// Step 2: Traverse data block bitmap to find an available slot
 	int i=0;
 	for(i=0;i<SB->max_dnum;i++){
-		if(get_bitmap(*data_bitmap,i)==0){
+		if(get_bitmap(data_bitmap,i)==0){
 			printf("Available data slot at data block num %d\n",i);
 			// Step 3: Update data block bitmap and write to disk
-			set_bitmap(*data_bitmap,i);
+			set_bitmap(data_bitmap,i);
 			bio_write(DATA_BITMAP_BLOCK,data_bitmap);
 			free(data_bitmap);
 			return i;
