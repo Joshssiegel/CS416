@@ -197,7 +197,8 @@ int tfs_mkfs() {
 	printf("Made inode start block 3\n");
 	//TODO: change if we store more than one inode per block
 	//TODO: Ceil or naw?
-	sb->d_start_blk=sb->i_start_blk+sb->max_inum+1;
+	sb->d_start_blk=sb->i_start_blk+ceil((float)(((float)(sb->max_inum))/((float)inodes_per_block)));
+	printf("Initialized start of data_block to: %d\n", sb->d_start_blk);
 	//write the superblock
   if(bio_write(0,sb)<0){
 		printf("error writing the superblock to the disk. Exiting program.\n");
@@ -232,7 +233,7 @@ int tfs_mkfs() {
  */
 static void *tfs_init(struct fuse_conn_info *conn) {
 	printf("init************\n");
-
+	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
 	// Step 1a: If disk file is not found, call mkfs
 	disk=dev_open(diskfile_path);
 	if(disk==-1){
@@ -247,7 +248,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	SB=(struct superblock*) malloc(sizeof(struct superblock));
 	bio_read(0,(void*) SB);
 	printf("Superblock inode start location: %d \n",SB->i_start_blk );
-	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
+
 	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
 	return NULL;
 }
