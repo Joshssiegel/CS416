@@ -32,6 +32,23 @@ char diskfile_path[PATH_MAX];
 int disk;
 bitmap_t inode_bitmap;
 bitmap_t data_bitmap;
+struct superblock* SB;
+int inodes_per_block;
+
+struct inode* getInode(int inum){
+	//get the block num by adding starting block by floor of inode num / inodes per block
+	int blockNum=SB->i_start_blk+inum/inodes_per_block;
+	void* iBlock;
+	//read in the entire block of inodes (there are multiple inodes per block)
+	bio_read(blockNum,iBlock);
+	//get the offset in the block where our inode starts
+	int offset=(inum%inodes_per_block)*sizeof(struct inode);
+	//get the starting address of the inode
+	struct inode* inodePtr=iBlock+offset;
+	printf("Asked for inode number %d in block %d, found inode number %d\n", inum, blockNum, inodePtr->ino);
+	return inodePtr;
+}
+
 
 /*
  * Get available inode number from bitmap
@@ -145,7 +162,7 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
  * Make file system
  */
 int tfs_mkfs() {
-
+	printf("Making file system\n");
 	// Call dev_init() to initialize (Create) Diskfile
 	dev_init(diskfile_path);
 	//Open the diskfile
@@ -167,6 +184,7 @@ int tfs_mkfs() {
 	sb->d_bitmap_blk=2;
 	//store inode blocks starting in block 3
 	sb->i_start_blk=3;
+	printf("Made inode start block 3\n");
 	//TODO: change if we store more than one inode per block
 	sb->d_start_blk=sb->i_start_blk+sb->max_inum;
 	//write the superblock
@@ -192,7 +210,6 @@ int tfs_mkfs() {
 	//TODO: What do we do for vstat?
 	struct stat* vstat=malloc(sizeof(struct stat));
 	vstat->st_mode   = S_IFDIR | 0755;
-	vstat->st_nlink  = 2;
 	time(&vstat->st_mtime);
 	root_inode->vstat=*vstat;			/* inode stat */
 	return 0;
@@ -212,10 +229,15 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 			printf("error making disk\n");
 		}
 	}
+	else
+		{printf("Disk is %d\n",disk);}
   // Step 1b: If disk file is found, just initialize in-memory data structures
   // and read superblock from disk
-
-
+	SB=(struct superblock*) malloc(sizeof(struct superblock));
+	bio_read(0,(void*) SB);
+	printf("Superblock inode start location: %d \n",SB->i_start_blk );
+	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
+	printf("inodes per block: %d with an inode size of %d\n",inodes_per_block,sizeof(struct inode));
 	return NULL;
 }
 
