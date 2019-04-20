@@ -30,8 +30,8 @@ char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
 int disk;
-bitmap_t inode_bitmap;
-bitmap_t data_bitmap;
+//bitmap_t inode_bitmap;
+//bitmap_t data_bitmap;
 struct superblock* SB;
 int inodes_per_block;
 
@@ -63,7 +63,10 @@ int get_avail_ino() {
 	bio_read(INODE_BITMAP_BLOCK, inode_bitmap);
 	// Step 2: Traverse inode bitmap to find an available slot
 	int i=0;
+	printf("max inodes is: %d\n",SB->max_inum);
 	for(i=0;i<SB->max_inum;i++){
+		int bit=get_bitmap(inode_bitmap,i);
+		printf("bit %d is %d\n",i,bit);
 		if(get_bitmap(inode_bitmap,i)==0){
 			printf("Available inode slot at inode num %d\n",i);
 			// Step 3: Update inode bitmap and write to disk
@@ -138,7 +141,7 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 	int retstatus=0;
 	// Step 1: Get the block number where this inode resides on disk
-	int blockNum=ino/inodes_per_block;
+	int blockNum=SB->i_start_blk+ino/inodes_per_block;
 	char* inodeBlock=malloc(BLOCK_SIZE);
 	retstatus=bio_read(blockNum,inodeBlock);
 	if(retstatus<0){
@@ -252,14 +255,16 @@ int tfs_mkfs() {
 		printf("error writing the superblock to the disk. Exiting program.\n");
 		exit(-1);
 	}
-
+	SB=sb;
 	// initialize inode bitmap
 	//TODO: Do we need to ceil?
-	inode_bitmap=calloc(1,sb->max_inum/8);
+	bitmap_t inode_bitmap=calloc(1,sb->max_inum/8);
 	// initialize data block bitmap
-	data_bitmap=calloc(1,sb->max_dnum/8);
+	bitmap_t data_bitmap=calloc(1,sb->max_dnum/8);
 	// update bitmap information for root directory
 	set_bitmap(inode_bitmap,0);
+	bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+	bio_write(DATA_BITMAP_BLOCK,data_bitmap);
 	// update inode for root directory
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
 	root_inode->ino=1;				/* inode number */
@@ -272,6 +277,7 @@ int tfs_mkfs() {
 	vstat->st_mode   = S_IFDIR | 0755;
 	time(&vstat->st_mtime);
 	root_inode->vstat=*vstat;			/* inode stat */
+	writei(0,root_inode);
 	return 0;
 }
 
@@ -289,15 +295,39 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 			printf("error making disk\n");
 		}
 	}
-	else
-		{printf("Disk is %d\n",disk);}
-  // Step 1b: If disk file is found, just initialize in-memory data structures
+	// Step 1b: If disk file is found, just initialize in-memory data structures
   // and read superblock from disk
-	SB=(struct superblock*) malloc(sizeof(struct superblock));
-	bio_read(0,(void*) SB);
-	printf("Superblock inode start location: %d \n",SB->i_start_blk );
+	else
+		{
+			printf("Disk is %d\n",disk);
+			SB=(struct superblock*) malloc(sizeof(struct superblock));
+			bio_read(0,(void*) SB);
+	}
+
+
+	printf("inode start location: %d \n",SB->i_start_blk );
 
 	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
+	printf("\n------------TESTING-----------------\n");
+	int i=0;
+
+	struct inode* test_inode = calloc(1,sizeof(struct inode));
+	test_inode->ino=get_avail_ino();				/* inode number */
+	test_inode->valid=1;				/* validity of the inode */
+	test_inode->size=0; //TODO: change to size of root dir				/* size of the file */
+	test_inode->type=TFS_FILE;				/* type of the file */
+	test_inode->link=1;				/* link count */
+
+  writei(test_inode->ino,test_inode);
+	printf("Wrote inode %d\n",test_inode->ino);
+	struct inode* test2_inode = calloc(1,sizeof(struct inode));
+	readi(1,test2_inode);
+	printf("test 2's inode number is: %d",test2_inode->ino);
+
+	//Update access time within vstat?
+	// for(i=0;i<SB->max_dnum;i++){
+	// 	printf("available blkno %d\n ",get_avail_blkno());
+	// }
 	return NULL;
 }
 
