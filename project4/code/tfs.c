@@ -59,12 +59,23 @@ struct inode* getInode(int inum){
 int get_avail_ino() {
 
 	// Step 1: Read inode bitmap from disk
-
+	bitmap_t* inode_bitmap=malloc(sizeof(bitmap_t));
+	bio_read(INODE_BITMAP_BLOCK, inode_bitmap);
 	// Step 2: Traverse inode bitmap to find an available slot
+	int i=0;
+	for(i=0;i<SB->max_inum;i++){
+		if(get_bitmap(inode_bitmap,i)==0){
+			printf("Available inode slot at inode num %d\n",i);
+			// Step 3: Update inode bitmap and write to disk
+			set_bitmap(inode_bitmap,i);
+			bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+			free(inode_bitmap);
+			return i;
+		}
+	}
+	printf("No available inode slots found.\n");
+	return -1;
 
-	// Step 3: Update inode bitmap and write to disk
-
-	return 0;
 }
 
 /*
@@ -85,22 +96,42 @@ int get_avail_blkno() {
  * inode operations
  */
 int readi(uint16_t ino, struct inode *inode) {
+	int retstatus=0;
 
   // Step 1: Get the inode's on-disk block number
-
+	//get the block num by adding starting block by floor of inode num / inodes per block
+	int blockNum=SB->i_start_blk+inum/inodes_per_block;
+	void* iBlock = malloc(BLOCK_SIZE);
+	//read in the entire block of inodes (there are multiple inodes per block)
+	retstatus=bio_read(blockNum,iBlock);
+	if(retstatus<0){
+		perror(" Error reading disk: \n");
+		return retstatus;
+	}
   // Step 2: Get offset of the inode in the inode on-disk block
-
+	//get the offset in the block where our inode starts
+	int offset=(inum%inodes_per_block)*sizeof(struct inode);
+	//get the starting address of the inode
+	struct inode* inodePtr=(struct inode*)malloc(sizeof(struct inode));//iBlock+offset;
+	memcpy(inodePtr, iBlock+offset, sizeof(struct inode));
+	free(iBlock);
+	printf("Asked for inode number %d in block %d, found inode number %d\n", inum, blockNum, inodePtr->ino);
   // Step 3: Read the block from disk and then copy into inode structure
+	*inode=*inodePtr;
 
-	return 0;
+	return retstatus;
 }
 
 int writei(uint16_t ino, struct inode *inode) {
-
+	int retstatus=0;
 	// Step 1: Get the block number where this inode resides on disk
 	int blockNum=ino/inodes_per_block;
 	char* inodeBlock=malloc(BLOCK_SIZE);
-	bio_read(blockNum,inodeBlock);
+	retstatus=bio_read(blockNum,inodeBlock);
+	if(retstatus<0){
+		perror(" Error reading disk: \n");
+		return retstatus;
+	}
 	// Step 2: Get the offset in the block where this inode resides on disk
 	//get the offset in the block where our inode starts
 	int offset=(ino%inodes_per_block)*sizeof(struct inode);
@@ -109,8 +140,12 @@ int writei(uint16_t ino, struct inode *inode) {
 	struct inode* addrOfInode=inodeBlock+offset;
 	*addrOfInode=*inode;
 	//write it back to disk
-	bio_write(blockNum,inodeBlock);
-	return 0;
+	retstatus=bio_write(blockNum,inodeBlock);
+	if(retstatus<0){
+		perror(" Error writing to disk: \n");
+		return retstatus;
+	}
+	return retstatus;
 }
 
 
