@@ -95,11 +95,17 @@ int readi(uint16_t ino, struct inode *inode) {
 int writei(uint16_t ino, struct inode *inode) {
 
 	// Step 1: Get the block number where this inode resides on disk
-
+	int blockNum=ino/inodes_per_block;
+	char* inodeBlock=malloc(BLOCK_SIZE);
+	bio_read(blockNum,inodeBlock);
 	// Step 2: Get the offset in the block where this inode resides on disk
-
+	//get the offset in the block where our inode starts
+	int offset=(ino%inodes_per_block)*sizeof(struct inode);
 	// Step 3: Write inode to disk
-
+	//overwrite the inode at the offset in memory
+	*(inodeBlock+offset)=*inode;
+	//write it back to disk
+	bio_write(blockNum,inodeBlock);
 	return 0;
 }
 
@@ -247,6 +253,7 @@ static void tfs_destroy(void *userdata) {
 	// Step 1: De-allocate in-memory data structures
 
 	// Step 2: Close diskfile
+	dev_close(disk);
 
 }
 
