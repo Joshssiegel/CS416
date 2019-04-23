@@ -170,7 +170,7 @@ int writei(uint16_t ino, struct inode *inode) {
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
-
+	printf("searching for %s\n",fname);
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
 	struct inode* dir_inode=malloc(sizeof(struct inode));
 	int retstatus=readi(ino,dir_inode);
@@ -202,7 +202,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 			continue;
 		}
 		else{
-			printf("checking non-empty data block # %d \n",dir_inode_data[data_block_index]);
+			printf("checking non-empty index %d: data block # %d \n",data_block_index,dir_inode_data[data_block_index]);
 
 		}
 		//read the allocated data block containing dir entries
@@ -229,7 +229,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 
 		}
 	}
-	printf("did not find %s in dir find\n.",fname);
+	printf("did not find %s in dir find\n",fname);
 	return -1;
 }
 
@@ -427,16 +427,7 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	if(num_valid_entries==0){
 //
 //
-// //test
-// struct inode* d_inode=malloc(sizeof(struct inode));
-// int retstatus=readi(parent_ino,d_inode);
-// if(retstatus<0){
-// 	perror("error reading the directory's inode\n");
-// 	return retstatus;
-// }
-// int* dir_inode_data=d_inode->direct_ptr;//if problems, try memcpy
 
-//end test
 		//no valid entries left in the data block. Remove the data block.
 		for(i=0;i<16;i++){
 			printf("comparing direct pointer %d to %d with block to remove: %d\n",i,dir_inode.direct_ptr[i],data_block_num);
@@ -468,6 +459,39 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	return 0;
 }
 
+
+int get_directory_and_file_name(char *path, char* dir_name, char* file_name){
+	int i=0;
+	int len=strlen(path);
+	if(path[0]=='/'){
+		path=path+1;
+	}
+	for(i=len;i>=0;i--){
+		if(path[i]=='/'){
+			strncpy(file_name,path+i+1,len-i-1);
+			strncpy(dir_name,path,i);
+			// /root/abc/a.txt
+			return 0;
+		}
+	}
+	printf("bad path\n");
+	return -1;
+}
+int split_dir_path(char* dir_path, char* first_dir, char* remaining){
+	int i=0;
+	int len=strlen(dir_path);
+	if(dir_path[0]=='/'){
+		dir_path=dir_path+1;
+	}
+	for(i=0;i<len;i++){
+		if(dir_path[i]=='/'){
+			strncpy(first_dir,dir_path,i);
+			strncpy(remaining,dir_path+i+1,len-i-1);
+			return 0;
+		}
+	}
+	return -1;
+}
 /*
  * namei operation
  */
@@ -475,8 +499,55 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
+	//Make sure to calloc so null termnator is included
+	char* dir_path_name=calloc(1024,sizeof(char));
+	char* file_path_name=calloc(256,sizeof(char));
+	get_directory_and_file_name(path,dir_path_name,file_path_name);
+	printf("dir path is: %s and file is: %s\n",dir_path_name,file_path_name);
+	char* first_dir=calloc(512,sizeof(char));
+	char* remaining=calloc(1024,sizeof(char));
+	int has_slash=0;
+	uint16_t prev_dir_ino=0;
+	struct dirent * dir=calloc(1,sizeof(struct dirent));
+	while(has_slash!=-1){
+		has_slash=split_dir_path(dir_path_name,first_dir,remaining);
+		if(has_slash==-1){
+			int find_status=dir_find(prev_dir_ino, dir_path_name, strlen(dir_path_name)+1, dir);
+			if(find_status<0){
+				printf("node doesn't exist\n");
+				return find_status;
+			}
+			prev_dir_ino=dir->ino;
+			memset(dir_path_name, 0, 1024);
+			strcpy(dir_path_name,remaining);
+			memset(remaining, 0, 1024);
+			memset(first_dir,0,512);
+			break;
+		}
+		printf("split of dir path is: %s and file is: %s\n",first_dir,remaining);
+		int find_status=dir_find(prev_dir_ino, first_dir, strlen(first_dir)+1, dir);
+		if(find_status<0){
+			printf("node doesn't exist\n");
+			return find_status;
+		}
+		prev_dir_ino=dir->ino;
+		memset(dir_path_name, 0, 1024);
+		strcpy(dir_path_name,remaining);
+		memset(remaining, 0, 1024);
+		memset(first_dir,0,512);
 
-	return 0;
+	}
+	int find_status=dir_find(prev_dir_ino, file_path_name, strlen(file_path_name)+1, dir);
+	if(find_status<0){
+		printf("couldn't find the file\n");
+		return find_status;
+	}
+	struct inode* final_inode=calloc(1,sizeof(struct inode));
+	int read_status=readi(dir->ino,final_inode);
+	if(read_status>=0)
+		printf("found inode %d\n",final_inode->ino);
+
+	return read_status;
 }
 
 /*
@@ -545,7 +616,19 @@ int tfs_mkfs() {
 	return 0;
 }
 
-
+void create_inode(struct inode* inode){
+	inode->ino=get_avail_ino();				/* inode number */
+	inode->valid=1;				/* validity of the inode */
+	inode->size=0; //TODO: change to size of root dir				/* size of the file */
+	inode->type=TFS_FILE;				/* type of the file */
+	inode->link=1;				/* link count */
+	int i=0;
+	for(i=0;i<16;i++){
+		inode->direct_ptr[i]=-1;
+	}
+  writei(inode->ino,inode);
+	printf("Wrote inode %d\n",inode->ino);
+}
 /*
  * FUSE file operations
  */
@@ -576,32 +659,32 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
 	printf("\n------------TESTING-----------------\n");
 	struct inode* test_inode = calloc(1,sizeof(struct inode));
-	test_inode->ino=get_avail_ino();				/* inode number */
-	test_inode->valid=1;				/* validity of the inode */
-	test_inode->size=0; //TODO: change to size of root dir				/* size of the file */
-	test_inode->type=TFS_FILE;				/* type of the file */
-	test_inode->link=1;				/* link count */
-
-  writei(test_inode->ino,test_inode);
-	printf("Wrote inode %d\n",test_inode->ino);
+	create_inode(test_inode);
 	struct inode* test2_inode = calloc(1,sizeof(struct inode));
-	readi(1,test2_inode);
-	printf("test 2's inode number is: %d\n",test2_inode->ino);
+	create_inode(test2_inode);
+
+	// readi(1,test2_inode);
+	// printf("test 2's inode number is: %d\n",test2_inode->ino);
+
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
 	readi(0,root_inode);
 	printf("root's inode number is: %d\n",root_inode->ino);
 	dir_add(*root_inode, 1, "foo\0", 4);
+	dir_add(*test_inode, 2, "bar\0", 4);
 	struct dirent *foo_dirent=calloc(1,sizeof(struct dirent));
 	dir_find(0, "foo\0", 4, foo_dirent);
 	printf("foo's dirent name is %s\n",foo_dirent->name);
 	readi(0,root_inode);
-	dir_remove(*root_inode, "foo\0", 4);
-	printf("foo has been removed\n");
-	dir_find(0, "foo\0", 4, foo_dirent);
+	// dir_remove(*root_inode, "foo\0", 4);
+	// printf("foo has been removed\n");
+	// dir_find(0, "foo\0", 4, foo_dirent);
 	free(foo_dirent);
-	foo_dirent=calloc(1,sizeof(struct dirent));
-	printf("foo's dirent name is %s\n",foo_dirent->name);
 
+	foo_dirent=calloc(1,sizeof(struct dirent));
+	dir_find(0, "foo\0", 4, foo_dirent);
+	printf("foo's dirent name is %s\n",foo_dirent->name);
+	printf("--------------Searching for a node--------------\n");
+	get_node_by_path("/foo/bar\0",0,NULL);
 
 	//Update access time within vstat?
 	// for(i=0;i<SB->max_dnum;i++){
