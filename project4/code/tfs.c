@@ -406,7 +406,7 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	int num_valid_entries=0;
 	for(i=0;i<num_entries_per_data_block;i++){
 		struct dirent* dir_entry=data_block+i;
-		printf("checking inode # %d\n",dir_entry->ino);
+		//printf("checking inode # %d\n",dir_entry->ino);
 
 		//remove directory entry by setting it's valid bit to 0
 		if(dir_entry->ino==dirent_to_remove->ino){
@@ -425,8 +425,21 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	free(data_block);
 	printf("number of valid entries after removing %d\n",num_valid_entries);
 	if(num_valid_entries==0){
+//
+//
+// //test
+// struct inode* d_inode=malloc(sizeof(struct inode));
+// int retstatus=readi(parent_ino,d_inode);
+// if(retstatus<0){
+// 	perror("error reading the directory's inode\n");
+// 	return retstatus;
+// }
+// int* dir_inode_data=d_inode->direct_ptr;//if problems, try memcpy
+
+//end test
 		//no valid entries left in the data block. Remove the data block.
 		for(i=0;i<16;i++){
+			printf("comparing direct pointer %d to %d with block to remove: %d\n",i,dir_inode.direct_ptr[i],data_block_num);
 			//search for the pointer to the data block, so we can remove it
 			if(dir_inode.direct_ptr[i]==data_block_num){
 				printf("data block %d is now empty. Removing.\n",dir_inode.direct_ptr[i]);
@@ -581,6 +594,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	struct dirent *foo_dirent=calloc(1,sizeof(struct dirent));
 	dir_find(0, "foo\0", 4, foo_dirent);
 	printf("foo's dirent name is %s\n",foo_dirent->name);
+	readi(0,root_inode);
 	dir_remove(*root_inode, "foo\0", 4);
 	printf("foo has been removed\n");
 	dir_find(0, "foo\0", 4, foo_dirent);
