@@ -428,7 +428,7 @@ int tfs_mkfs() {
 	bio_write(DATA_BITMAP_BLOCK,data_bitmap);
 	// update inode for root directory
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
-	root_inode->ino=1;				/* inode number */
+	root_inode->ino=0;				/* inode number */
 	root_inode->valid=1;				/* validity of the inode */
 	root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
 	root_inode->type=TFS_DIRECTORY;				/* type of the file */
@@ -485,8 +485,14 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	printf("Wrote inode %d\n",test_inode->ino);
 	struct inode* test2_inode = calloc(1,sizeof(struct inode));
 	readi(1,test2_inode);
-	printf("test 2's inode number is: %d",test2_inode->ino);
-
+	printf("test 2's inode number is: %d\n",test2_inode->ino);
+	struct inode* root_inode = calloc(1,sizeof(struct inode));
+	readi(0,root_inode);
+	printf("root's inode number is: %d\n",root_inode->ino);
+	dir_add(*root_inode, 1, "foo\0", 4);
+	struct dirent *foo_dirent=calloc(1,sizeof(struct dirent));
+	dir_find(0, "foo\0", 4, foo_dirent);
+	printf("foo's dirent name is %s\n",foo_dirent->name);
 	//Update access time within vstat?
 	// for(i=0;i<SB->max_dnum;i++){
 	// 	printf("available blkno %d\n ",get_avail_blkno());
