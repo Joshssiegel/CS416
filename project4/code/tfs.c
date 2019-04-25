@@ -29,7 +29,7 @@
 char diskfile_path[PATH_MAX];
 
 // Declare your in-memory data structures here
-int disk;
+int disk=-1;
 //bitmap_t inode_bitmap;
 //bitmap_t data_bitmap;
 struct superblock* SB;
@@ -58,13 +58,12 @@ struct inode* getInode(int inum){
  * Get available inode number from bitmap
  */
 int get_avail_ino() {
-
 	// Step 1: Read inode bitmap from disk
 	bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
 	bio_read(INODE_BITMAP_BLOCK, inode_bitmap);
 	// Step 2: Traverse inode bitmap to find an available slot
 	int i=0;
-	printf("max inodes is: %d\n",SB->max_inum);
+	printf("\n max inodes is: %d\n",SB->max_inum);
 	for(i=0;i<SB->max_inum;i++){
 		int bit=get_bitmap(inode_bitmap,i);
 		printf("bit %d is %d\n",i,bit);
@@ -648,7 +647,9 @@ int tfs_mkfs() {
 }
 
 void initialize_file_inode(struct inode* inode){
+	printf("initializing file inode\n");
 	inode->ino=get_avail_ino();				/* inode number */
+	printf("\n got avail ino # %d\n",inode->ino);
 	inode->valid=1;				/* validity of the inode */
 	inode->size=0; //TODO: change to size			/* size of the file */
 	inode->type=TFS_FILE;				/* type of the file */
@@ -677,22 +678,32 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 			printf("error making disk\n");
 		}
 	}
+
 	// Step 1b: If disk file is found, just initialize in-memory data structures
   // and read superblock from disk
 	else
 		{
-			printf("Disk is %d\n",disk);
-			SB=(struct superblock*) malloc(sizeof(struct superblock));
-			bio_read(0,(void*) SB);
-	}
+			printf("Disk has already been created and is %d\n",disk);
+			SB=(struct superblock*) malloc(BLOCK_SIZE);
+			bio_read(0,SB);
 
+			if(SB->magic_num!=MAGIC_NUM){
+				//TODO: something when disk isn't ours
+				printf("magic nums don't match\n");
+			}
+	}
 
 	printf("inode start location: %d \n",SB->i_start_blk );
 
 	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
-	printf("\n------------TESTING-----------------\n");
+	printf("\n------------TESTING boi-----------------\n");
+	printf("\nsakd--------\n");
 	struct inode* test_inode = calloc(1,sizeof(struct inode));
+	// printf("\nsfkljkdfea test_inode\n");
+
+
 	initialize_file_inode(test_inode);
+	printf("initialized file inode 1\n");
 	writei(test_inode->ino, test_inode);
 	struct inode* test2_inode = calloc(1,sizeof(struct inode));
 	initialize_file_inode(test2_inode);
@@ -734,6 +745,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	// for(i=0;i<SB->max_dnum;i++){
 	// 	printf("available blkno %d\n ",get_avail_blkno());
 	// }
+
 	return NULL;
 }
 
@@ -747,6 +759,7 @@ static void tfs_destroy(void *userdata) {
 }
 
 static int tfs_getattr(const char *path, struct stat *stbuf) {
+
 	printf("****************in tfs_getattr****************\n");
 	printf("getting attr of %s\n",path);
 	// Step 1: call get_node_by_path() to get inode from path
