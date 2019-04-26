@@ -778,8 +778,9 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		free(inode);
 	return 0;
 }
-
 static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
+	//TODO: Put file descriptor in fi->fh and in memory
+
 
 	// Step 1: Call get_node_by_path() to get inode from path
 
