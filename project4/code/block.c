@@ -1,6 +1,6 @@
 /*
  *  Copyright (C) 2019 CS416 Spring 2019
- *	
+ *
  *	Tiny File System
  *
  *	File:	block.c
@@ -29,13 +29,13 @@ void dev_init(const char* diskfile_path) {
     if (diskfile >= 0) {
 		return;
     }
-    
+
     diskfile = open(diskfile_path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     if (diskfile < 0) {
 		perror("disk_open failed");
 		exit(EXIT_FAILURE);
     }
-	
+
     ftruncate(diskfile, DISK_SIZE);
 }
 
@@ -44,7 +44,7 @@ int dev_open(const char* diskfile_path) {
     if (diskfile >= 0) {
 		return 0;
     }
-    
+
     diskfile = open(diskfile_path, O_RDWR, S_IRUSR | S_IWUSR);
     if (diskfile < 0) {
 		perror("disk_open failed");
@@ -64,11 +64,10 @@ int bio_read(const int block_num, void *buf) {
     int retstat = 0;
     retstat = pread(diskfile, buf, BLOCK_SIZE, block_num*BLOCK_SIZE);
     if (retstat <= 0) {
-		memset (buf, 0, BLOCK_SIZE);
-		if (retstat < 0)
-			perror("block_read failed");
+  		memset (buf, 0, BLOCK_SIZE);
+  		if (retstat < 0)
+  			perror("block_read failed");
     }
-
     return retstat;
 }
 
@@ -81,4 +80,3 @@ int bio_write(const int block_num, const void *buf) {
     }
     return retstat;
 }
-

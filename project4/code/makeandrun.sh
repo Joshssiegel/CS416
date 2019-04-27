@@ -8,6 +8,6 @@ make
 ./simple_test
 cd ..
 ./unmount.sh
-rm -r /tmp/jss393/mountdir/files
+#rm -r /tmp/jss393/mountdir/files
 
 
