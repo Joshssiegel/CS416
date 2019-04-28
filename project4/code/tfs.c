@@ -1048,9 +1048,21 @@ static int tfs_open(const char *path, struct fuse_file_info *fi) {
 	printf("***********************in tfs_open***********************\n");
 
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode* inode=malloc(BLOCK_SIZE);
+	int found_status=get_node_by_path(path,0,inode);
 	// Step 2: If not find, return -1
+	if(found_status<0){
+		printf("cannot open file, wasn't found.\n");
+		return -1;
+	}
 
+	int fd=find_next_file_descriptor();
+	if(fd==-1){
+		printf("no available file descriptors\n");
+		return -1;
+	}
+	fi->fh=fd;
+	fd_table[fd]=inode->ino;
 	return 0;
 }
 
@@ -1069,7 +1081,7 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 	printf("***********************in tfs_write***********************\n");
-
+	printf("file descriptor is %d\n",fi->fh);
 	// Step 1: You could call get_node_by_path() to get inode from path
 
 	// Step 2: Based on size and offset, read its data blocks from disk
