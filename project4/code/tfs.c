@@ -730,11 +730,11 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	// printf("\nsfkljkdfea test_inode\n");
 
 
-	initialize_file_inode(test_inode);
+	initialize_dir_inode(test_inode);
 	printf("initialized file inode 1\n");
 	writei(test_inode->ino, test_inode);
 	struct inode* test2_inode = calloc(1,sizeof(struct inode));
-	initialize_file_inode(test2_inode);
+	initialize_dir_inode(test2_inode);
 	writei(test2_inode->ino, test_inode);
 
 	// readi(1,test2_inode);
@@ -875,10 +875,11 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 			continue;
 		}
 
-		bio_read(inode->direct_ptr[dir_ptr_index],data_block);
+		bio_read(SB->d_start_blk+inode->direct_ptr[dir_ptr_index],data_block);
 		for(dir_entry_index=0;dir_entry_index<num_entries_per_data_block;dir_entry_index++){
 			if((data_block+dir_entry_index)->valid==1){
 				//read the data to the buffer
+				printf("found %s in readdir\n",(data_block+dir_entry_index)->name);
 				int status=filler(buffer, (data_block+dir_entry_index)->name,NULL,offset);
 				if(status!=0){
 					return 0;
