@@ -295,7 +295,7 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 				return -1;
 			}
 			else{
-				printf("%s doesn't equal %s\n",dir_entry->name,fname);
+				//printf("%s doesn't equal %s\n",dir_entry->name,fname);
 			}
 		}
 	}
@@ -427,9 +427,6 @@ int dir_remove(struct inode dir_inode, const char *fname, size_t name_len) {
 	free(data_block);
 	printf("number of valid entries after removing %d\n",num_valid_entries);
 	if(num_valid_entries==0){
-//
-//
-
 		//no valid entries left in the data block. Remove the data block.
 		for(i=0;i<16;i++){
 			printf("comparing direct pointer %d to %d with block to remove: %d\n",i,dir_inode.direct_ptr[i],data_block_num);
@@ -639,15 +636,15 @@ int tfs_mkfs() {
 	// root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
 	// root_inode->type=TFS_DIRECTORY;				/* type of the file */
 	// root_inode->link=2;				/* link count */
-	int i=0;
-	for(i=0;i<16;i++){
-		root_inode->direct_ptr[i]=-1;
-	}
+	// int i=0;
+	// for(i=0;i<16;i++){
+	// 	root_inode->direct_ptr[i]=-1;
+	// }
 	//Update access time within vstat?
-	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFDIR | 0755;
-	time(& vstat->st_mtime);
-	root_inode->vstat=*vstat;			/* inode stat */
+	// struct stat* vstat=malloc(sizeof(struct stat));
+	// vstat->st_mode   = S_IFDIR | 0755;
+	// time(& vstat->st_mtime);
+	// root_inode->vstat=*vstat;			/* inode stat */
 	writei(0,root_inode);
 	return 0;
 }
@@ -667,6 +664,10 @@ void initialize_file_inode(struct inode* inode){
 			inode->indirect_ptr[i]=-1;
 		}
 	}
+	struct stat* vstat=malloc(sizeof(struct stat));
+	vstat->st_mode   = S_IFREG | 0644;
+	time(& vstat->st_mtime);
+	inode->vstat=*vstat;			/* inode stat */
 
 }
 
@@ -686,6 +687,10 @@ void initialize_dir_inode(struct inode* inode){
 			inode->indirect_ptr[i]=-1;
 		}
 	}
+	struct stat* vstat=malloc(sizeof(struct stat));
+	vstat->st_mode   = S_IFDIR | 0755;
+	time(& vstat->st_mtime);
+	inode->vstat=*vstat;			/* inode stat */
 
 }
 /*
@@ -805,13 +810,14 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		// stbuf->st_mode   = S_IFDIR | 0755;
 		// stbuf->st_nlink  = 2;
 		// time(&stbuf->st_mtime);
-		if(inode->type==TFS_DIRECTORY){
-			stbuf->st_mode=S_IFDIR | 0755;//0755
-		}
-		else{
-			//may have to change to like 644 or 666
-			stbuf->st_mode=inode->vstat.st_mode;//inode's stat's mode
-		}
+		// if(inode->type==TFS_DIRECTORY){
+		// 	stbuf->st_mode=S_IFDIR | 0755;//0755
+		// }
+		// else{
+		// 	//may have to change to like 644 or 666
+		// 	stbuf->st_mode=S_IFREG | 0644;//inode->vstat.st_mode;//inode's stat's mode
+		// }
+		stbuf->st_mode=inode->vstat.st_mode;
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
 		stbuf->st_ino=inode->ino;
