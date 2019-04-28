@@ -72,5 +72,7 @@ uint8_t get_bitmap(bitmap_t b, int i) {
     return b[i / 8] & (1 << (i & 7)) ? 1 : 0;
 }
 struct inode* getInode(int);
+void initialize_file_inode(struct inode* );
+void initialize_dir_inode(struct inode* );
 
 #endif

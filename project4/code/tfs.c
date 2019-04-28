@@ -35,6 +35,7 @@ int disk=-1;
 struct superblock* SB;
 int inodes_per_block;
 int num_entries_per_data_block;
+int* fd_table;
 
 struct inode* getInode(int inum){
 	//get the block num by adding starting block by floor of inode num / inodes per block
@@ -469,7 +470,7 @@ int get_directory_and_file_name(char *path, char* dir_name, char* file_name){
 	for(i=len-1;i>=0;i--){
 		if(path[i]=='/' && path[i+1]!='\0' && len-i-1>0){
 			if(*(path+len-1)=='/'){
-				printf("last char was a slash at index . removing it.\n");
+				printf("last char was a slash at index %d removing it.\n",path+len-1);
 				strncpy(file_name,path+i+1,len-i-2);
 				printf("file name is %s and has length %d\n",file_name, strlen(file_name));
 
@@ -513,7 +514,7 @@ int split_dir_path(char* dir_path, char* first_dir, char* remaining){
  * namei operation
  */
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
-
+	printf("searching for %s\n",path);
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
 	//Make sure to calloc so null termnator is included
@@ -624,16 +625,18 @@ int tfs_mkfs() {
 	// initialize data block bitmap
 	bitmap_t data_bitmap=calloc(1,sb->max_dnum/8);
 	// update bitmap information for root directory
-	set_bitmap(inode_bitmap,0);
+	//set_bitmap(inode_bitmap,0);
 	bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
 	bio_write(DATA_BITMAP_BLOCK,data_bitmap);
 	// update inode for root directory
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
-	root_inode->ino=0;				/* inode number */
-	root_inode->valid=1;				/* validity of the inode */
-	root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
-	root_inode->type=TFS_DIRECTORY;				/* type of the file */
-	root_inode->link=1;				/* link count */
+	initialize_dir_inode(root_inode);
+
+	// root_inode->ino=0;				/* inode number */
+	// root_inode->valid=1;				/* validity of the inode */
+	// root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
+	// root_inode->type=TFS_DIRECTORY;				/* type of the file */
+	// root_inode->link=2;				/* link count */
 	int i=0;
 	for(i=0;i<16;i++){
 		root_inode->direct_ptr[i]=-1;
@@ -664,6 +667,25 @@ void initialize_file_inode(struct inode* inode){
 	}
 
 }
+
+
+void initialize_dir_inode(struct inode* inode){
+	printf("initializing dir inode\n");
+	inode->ino=get_avail_ino();				/* inode number */
+	printf("\n got avail ino # %d\n",inode->ino);
+	inode->valid=1;				/* validity of the inode */
+	inode->size=0; //TODO: change to size			/* size of the file */
+	inode->type=TFS_DIRECTORY;				/* type of the file */
+	inode->link=2;				/* link count */
+	int i=0;
+	for(i=0;i<16;i++){
+		inode->direct_ptr[i]=-1;
+		if(i<8){
+			inode->indirect_ptr[i]=-1;
+		}
+	}
+
+}
 /*
  * FUSE file operations
  */
@@ -671,7 +693,12 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	printf("init************\n");
 	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
 	num_entries_per_data_block=BLOCK_SIZE/sizeof(struct dirent);
-
+	fd_table=malloc((MAX_INUM+1)*sizeof(int));
+	//initialize table to -1;
+	int i=0;
+	for(i=0;i<MAX_INUM+1;i++){
+		fd_table[i]=-1;
+	}
 	// Step 1a: If disk file is not found, call mkfs
 	disk=dev_open(diskfile_path);
 	if(disk==-1){
@@ -742,6 +769,8 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	get_node_by_path("foo/bar/a\0",0,answer);
 	printf("\n&&&&Should find\n");
 	get_node_by_path("foo/bar\0",0,answer);
+	struct fuse_file_info *fi=calloc(1,sizeof(struct fuse_file_info));
+
 	//Update access time within vstat?
 	// for(i=0;i<SB->max_dnum;i++){
 	// 	printf("available blkno %d\n ",get_avail_blkno());
@@ -778,10 +807,11 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		// stbuf->st_nlink  = 2;
 		// time(&stbuf->st_mtime);
 		if(inode->type==TFS_DIRECTORY){
-			stbuf->st_mode=S_IFDIR | 0777;
+			stbuf->st_mode=S_IFDIR | 0755;//0755
+			printf("attr is a directory\n");
 		}
 		else{
-			stbuf->st_mode=S_IFREG | 0777;//0644;// or change to inode's stat's mode
+			stbuf->st_mode=S_IFREG | 0644;//0644;// or change to inode's stat's mode
 		}
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
@@ -792,25 +822,70 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		free(inode);
 	return 0;
 }
+int find_next_file_descriptor(){
+	int i =0;
+	for(i=0;i<MAX_INUM+1;i++){
+		if(fd_table[i]==-1){
+			return i;
+		}
+	}
+	printf("no file descriptors available\n");
+	return -1;
+}
 static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 	//TODO: Put file descriptor in fi->fh and in memory
 	printf("***********************in tfs_opendir***********************\n");
-
-
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode* inode=malloc(sizeof(struct inode));
+	int found_node=get_node_by_path(path,0,inode);
 	// Step 2: If not find, return -1
-
-    return 0;
+	if(found_node<0){
+		printf("cannot open dir that doesn't exist\n");
+		return -1;
+	}
+	int fd=find_next_file_descriptor();
+	if(fd==-1){
+		printf("no available file descriptors\n");
+		return -1;
+	}
+	fi->fh=fd;
+	fd_table[fd]=inode->ino;
+  return 0;
 }
 
 static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi) {
 	printf("***********************in tfs_readdir***********************\n");
 
 	// Step 1: Call get_node_by_path() to get inode from path
-
+	struct inode* inode=malloc(sizeof(struct inode));
+	int found_node=get_node_by_path(path,0,inode);
+	// Step 2: If not find, return -1
+	if(found_node<0){
+		printf("cannot open dir that doesn't exist\n");
+		return -1;
+	}
+	filler(buffer, ".", NULL,offset); // Current Directory
+	filler(buffer, "..", NULL,offset); // Parent Directory
 	// Step 2: Read directory entries from its data blocks, and copy them to filler
+	int dir_ptr_index=0;
+	int dir_entry_index=0;
+	struct dirent* data_block=malloc(BLOCK_SIZE);
+	for(dir_ptr_index=0;dir_ptr_index<16;dir_ptr_index++){
+		if(inode->direct_ptr[dir_ptr_index]==-1){
+			continue;
+		}
 
+		bio_read(inode->direct_ptr[dir_ptr_index],data_block);
+		for(dir_entry_index=0;dir_entry_index<num_entries_per_data_block;dir_entry_index++){
+			if((data_block+dir_entry_index)->valid==1){
+				//read the data to the buffer
+				int status=filler(buffer, (data_block+dir_entry_index)->name,NULL,offset);
+				if(status!=0){
+					return 0;
+				}
+			}
+		}
+	}
 	return 0;
 }
 
@@ -834,8 +909,7 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 	// Step 3: Call get_avail_ino() to get an available inode number
 	struct inode* sub_dir_inode=malloc(sizeof(struct inode));
 	//initialize the new sub_dir inode
-	initialize_file_inode(sub_dir_inode);
-	sub_dir_inode->type=TFS_DIRECTORY;
+	initialize_dir_inode(sub_dir_inode);
 
 	// Step 4: Call dir_add() to add directory entry of target directory to parent directory
 	int status=dir_add(*parent_inode, sub_dir_inode->ino, sub_dir_name, strlen(sub_dir_name));
