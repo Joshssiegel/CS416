@@ -170,7 +170,7 @@ int writei(uint16_t ino, struct inode *inode) {
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
-	printf("searching for %s\n",fname);
+	printf("searching for %s in inode %d inside dir find\n",fname, ino);
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
 	struct inode* dir_inode=malloc(sizeof(struct inode));
 	int retstatus=readi(ino,dir_inode);
@@ -306,8 +306,9 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 	new_entry->valid=1;
 	//inode was given
 	new_entry->ino=f_ino;
+
 	//copy the string name that was given
-	strncpy(new_entry->name,fname,name_len);
+	strncpy(new_entry->name,fname,name_len+1);
 	//empty dir-entry in allocated data block takes priority over unallocated data block
 	if(found_empty_slot==1){
 		printf("found an empty slot in allocated data block: %d at entry # %d\n",dir_inode_data[empty_block_index],empty_dirent_index);
@@ -334,10 +335,11 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 			//malloc space for the new block
 			struct dirent* new_data_block=malloc(BLOCK_SIZE);
 			//set the first entry of the new data block to store the new entry
-			*new_data_block=*new_entry;
+			//*new_data_block=*new_entry;
+			new_data_block[0]=*new_entry;
 			//write to disk
 			bio_write(SB->d_start_blk+block_num,new_data_block);
-
+			printf("wrote to block %d\n",SB->d_start_blk+block_num);
 			free(new_data_block);
 			free(new_entry);
 		}
@@ -373,11 +375,11 @@ int dir_add(struct inode dir_inode, uint16_t f_ino, const char *fname, size_t na
 	//update the direct_ptrs
 	//parent_inode->direct_ptr=dir_inode_data;
 	memcpy(parent_inode->direct_ptr,dir_inode_data,16*sizeof(int));
-
 	//update access time of parent
 	time(& (parent_inode->vstat.st_mtime));
 	// Write directory entry
 	writei(parent_ino,parent_inode);
+
 	free(parent_inode);
 	free(data_bitmap);
 	free(data_block);
@@ -514,11 +516,11 @@ int split_dir_path(char* dir_path, char* first_dir, char* remaining){
  * namei operation
  */
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
-	printf("searching for %s\n",path);
+	printf("searching for %s in get_node_by_path\n",path);
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
 	//Make sure to calloc so null termnator is included
-	if(strcmp(path,"/")==0){
+	if(strcmp(path,"/")==0 || strlen(path)==0){
 		printf("only asked for root.\n");
 		//read root into inode
 		readi(0,inode);
@@ -735,7 +737,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	writei(test_inode->ino, test_inode);
 	struct inode* test2_inode = calloc(1,sizeof(struct inode));
 	initialize_dir_inode(test2_inode);
-	writei(test2_inode->ino, test_inode);
+	writei(test2_inode->ino, test2_inode);
 
 	// readi(1,test2_inode);
 	// printf("test 2's inode number is: %d\n",test2_inode->ino);
@@ -797,28 +799,27 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 	int found_node=get_node_by_path(path,0,inode);
 	if(found_node<0){
 		printf("Can't get attr of %s since it doesn't exist.\n",path);
-		return -1;
+		return -ENOENT;
 	}
 	// Step 2: fill attribute of file into stbuf from inode
-		//Maybe not needed? Remove if not needed.
-		stbuf->st_uid = getuid();
-		stbuf->st_gid = getgid();
 		// stbuf->st_mode   = S_IFDIR | 0755;
 		// stbuf->st_nlink  = 2;
 		// time(&stbuf->st_mtime);
 		if(inode->type==TFS_DIRECTORY){
 			stbuf->st_mode=S_IFDIR | 0755;//0755
-			printf("attr is a directory\n");
 		}
 		else{
-			stbuf->st_mode=S_IFREG | 0644;//0644;// or change to inode's stat's mode
+			//may have to change to like 644 or 666
+			stbuf->st_mode=inode->vstat.st_mode;//inode's stat's mode
 		}
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
-
+		stbuf->st_ino=inode->ino;
 		//TODO: Ask if we should update access time, or just give last access?
 			//TODO: IF update access time, update for inode. If not, get it from inode
 		time(&stbuf->st_mtime);
+		stbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
+		//stbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
 		free(inode);
 	return 0;
 }
@@ -896,8 +897,8 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 
 	//TODO: initialize all direct_ptrs to -1 when creating the directory
 	// Step 1: Use dirname() and basename() to separate parent directory path and target directory name
-	char* dir_name=malloc(1024);
-	char* sub_dir_name=malloc(1024);
+	char* dir_name=calloc(1,1024);
+	char* sub_dir_name=calloc(1,1024);
 	get_directory_and_file_name(path, dir_name,sub_dir_name);
 	printf("creating sub-dir %s in directory %s\n",sub_dir_name, dir_name);
 	// Step 2: Call get_node_by_path() to get inode of parent directory
@@ -928,6 +929,8 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 
 	// Step 6: Call writei() to write inode to disk
 	writei(sub_dir_inode->ino,sub_dir_inode);
+
+	get_node_by_path("foo/bar",0,parent_inode);
 	free(parent_inode);
 	free(sub_dir_inode);
 	free(dir_name);
@@ -940,17 +943,55 @@ static int tfs_rmdir(const char *path) {
 	printf("***********************in tfs_rmdir***********************\n");
 
 	// Step 1: Use dirname() and basename() to separate parent directory path and target directory name
-
+	char* dir_name=calloc(1,1024);
+	char* sub_dir_name=calloc(1,1024);
+	get_directory_and_file_name(path, dir_name,sub_dir_name);
+	printf("removing sub-dir %s in directory %s\n",sub_dir_name, dir_name);
 	// Step 2: Call get_node_by_path() to get inode of target directory
+	struct inode* parent_inode=malloc(sizeof(struct inode));
+	struct inode* target_inode=malloc(sizeof(struct inode));
+
+	int found_parent=get_node_by_path(dir_name, 0,parent_inode);
+	if(found_parent<0){
+		printf("Parent directory doesn't exist.\n");
+		return -1;
+	}
+	int found_target=get_node_by_path(path, 0,target_inode);
+	if(found_parent<0){
+		printf("target directory doesn't exist.\n");
+		return -1;
+	}
 
 	// Step 3: Clear data block bitmap of target directory
-
+	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
+	bio_read(DATA_BITMAP_BLOCK,data_bitmap);
+	int dir_ptr_index=0;
+	//check that the directory to remove is empty
+	for(dir_ptr_index=0;dir_ptr_index<16;dir_ptr_index++){
+		if(target_inode->direct_ptr[dir_ptr_index]==-1 && get_bitmap(data_bitmap,target_inode->direct_ptr[dir_ptr_index])==1){
+			printf("Please remove empty, allocated data block before removing directory\n");
+			return -1;
+		}
+		if(target_inode->direct_ptr[dir_ptr_index]!=-1 || get_bitmap(data_bitmap,target_inode->direct_ptr[dir_ptr_index])==1){
+			printf("Directory is not empty. Cannot remove.\n");
+			return -1;
+		}
+	}
 	// Step 4: Clear inode bitmap and its data block
-
+	bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
+	bio_read(INODE_BITMAP_BLOCK,inode_bitmap);
+	unset_bitmap(inode_bitmap,target_inode->ino);
+	bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+	free(inode_bitmap);
+	free(data_bitmap);
 	// Step 5: Call get_node_by_path() to get inode of parent directory
 
 	// Step 6: Call dir_remove() to remove directory entry of target directory in its parent directory
-
+	int remove_status=dir_remove(*parent_inode, sub_dir_name, strlen(sub_dir_name));
+	if(remove_status<0){
+		printf("error removing\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -963,8 +1004,8 @@ static int tfs_releasedir(const char *path, struct fuse_file_info *fi) {
 static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
 	printf("***********************in tfs_create***********************\n");
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
-	char* dir_name=malloc(1024);
-	char* file_name=malloc(1024);
+	char* dir_name=calloc(1,1024);
+	char* file_name=calloc(1,1024);
 	get_directory_and_file_name(path, dir_name,file_name);
 	printf("creating file %s in directory %s\n",file_name, dir_name);
 	struct inode* parent_inode=malloc(sizeof(struct inode));
