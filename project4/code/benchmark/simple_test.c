@@ -31,25 +31,28 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 	printf("TEST 1: File create Success \n");
-
+	printf("my test: fd is %d\n",fd);
 
 	/* Perform sequential writes */
-	for (i = 0; i < ITERS; i++) {
+	for (i = 0; i < 10; i++) {
 		//memset with some random data
 		memset(buf, 0x61 + i, BLOCKSIZE);
 
-		if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
-			printf("TEST 2: File write failure \n");
-			exit(1);
-		}
+		// if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
+		write(fd, buf, BLOCKSIZE);
+		printf("wroten\n");
+		memset(buf, 0, BLOCKSIZE);
+		read(fd, buf, BLOCKSIZE);
+		printf("before exiting, we read: %s\n",buf);
+		exit(1);
 	}
 
 	fstat(fd, &st);
 	if (st.st_size != ITERS*BLOCKSIZE) {
 		printf("TEST 2: File write failure \n");
-		exit(1);
+		//exit(1);
 	}
-	printf("TEST 2: File write Success \n");
+	printf("TEST 2: File write not Success \n");
 
 
 	/*Close operation*/
@@ -64,7 +67,7 @@ int main(int argc, char **argv) {
 		perror("open");
 		exit(1);
 	}
-
+	printf("we opened file descriptor %d\n",fd);
 
 	/* Perform sequential reading */
 	for (i = 0; i < ITERS; i++) {
