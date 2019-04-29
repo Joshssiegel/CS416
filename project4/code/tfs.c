@@ -665,7 +665,7 @@ void initialize_file_inode(struct inode* inode){
 		}
 	}
 	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFREG | 0644;
+	vstat->st_mode   = S_IFREG | 0777;//0666;
 	time(& vstat->st_mtime);
 	inode->vstat=*vstat;			/* inode stat */
 
@@ -688,7 +688,7 @@ void initialize_dir_inode(struct inode* inode){
 		}
 	}
 	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFDIR | 0755;
+	vstat->st_mode   = S_IFDIR | 0777;//0755;
 	time(& vstat->st_mtime);
 	inode->vstat=*vstat;			/* inode stat */
 
@@ -808,19 +808,19 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		return -ENOENT;
 	}
 	// Step 2: fill attribute of file into stbuf from inode
-		// stbuf->st_mode   = S_IFDIR | 0755;
 		// stbuf->st_nlink  = 2;
-		// time(&stbuf->st_mtime);
-		// if(inode->type==TFS_DIRECTORY){
-		// 	stbuf->st_mode=S_IFDIR | 0755;//0755
-		// }
-		// else{
-		// 	//may have to change to like 644 or 666
-		// 	stbuf->st_mode=S_IFREG | 0644;//inode->vstat.st_mode;//inode's stat's mode
-		// }
-		stbuf->st_mode=inode->vstat.st_mode;
+		time(&stbuf->st_mtime);
+		if(inode->type==TFS_DIRECTORY){
+			stbuf->st_mode=S_IFDIR | 0777;//0755
+		}
+		else{
+			//may have to change to like 644 or 666
+			stbuf->st_mode=S_IFREG | 0777;//inode->vstat.st_mode;//inode's stat's mode
+		}
+		// stbuf->st_mode=inode->vstat.st_mode;
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
+		printf("size of inode is %d\n",stbuf->st_size);
 		stbuf->st_ino=inode->ino;
 		//TODO: Ask if we should update access time, or just give last access?
 			//TODO: IF update access time, update for inode. If not, get it from inode
@@ -828,6 +828,8 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		stbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
 		//stbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
 		free(inode);
+		stbuf->st_uid=getuid();
+		stbuf->st_gid=getgid();
 	return 0;
 }
 int find_next_file_descriptor(){
@@ -851,13 +853,12 @@ static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 		printf("cannot open dir that doesn't exist\n");
 		return -1;
 	}
-	int fd=find_next_file_descriptor();
-	if(fd==-1){
-		printf("no available file descriptors\n");
-		return -1;
-	}
-	// fi->fh=fd;
-	// fd_table[fd]=inode->ino;
+	// int fd=find_next_file_descriptor();
+	// if(fd==-1){
+	// 	printf("no available file descriptors\n");
+	// 	return -1;
+	// }
+	// fi->fh=inode->ino;
 	// printf("in opendir: gave file descriptor %d to file %s\n",fd,path);
   return 0;
 }
@@ -1039,6 +1040,9 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 	//TODO: What to update? already initialized file
 	// Step 6: Call writei() to write inode to disk
 	writei(file_inode->ino,file_inode);
+	// fi->fh=file_inode->ino;
+	// fd_table[fd]=file_inode->ino;
+	// printf("in create: gave file descriptor %d to file %s\n",fd,path);
 	free(parent_inode);
 	free(file_inode);
 	free(dir_name);
@@ -1048,24 +1052,21 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 
 static int tfs_open(const char *path, struct fuse_file_info *fi) {
 	printf("***********************in tfs_open***********************\n");
-
 	// Step 1: Call get_node_by_path() to get inode from path
 	struct inode* inode=malloc(BLOCK_SIZE);
 	int found_status=get_node_by_path(path,0,inode);
 	// Step 2: If not find, return -1
-	if(found_status<0){
+	if(found_status<0 || inode->valid==0){
 		printf("cannot open file, wasn't found.\n");
 		return -1;
 	}
 
-	int *fd=malloc(256);//find_next_file_descriptor();
-	if(fd==-1){
-		printf("no available file descriptors\n");
-		return -1;
-	}
-	// fi->fh=fd;
+	inode->link+=1;
+	// int fd=find_next_file_descriptor();
+	// fi->fh=inode->ino;
 	// fd_table[fd]=inode->ino;
 	// printf("in open: gave file descriptor %d to file %s\n",fd,path);
+	printf("found in open\n");
 	return 0;
 }
 
@@ -1159,9 +1160,9 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 	return numBytesRead;
 }
 
+
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 	printf("***********************in tfs_write***********************\n");
-	// Step 1: You could call get_node_by_path() to get inode from path
 		// Step 1: You could call get_node_by_path() to get inode from path
 		struct inode* inode=malloc(BLOCK_SIZE);
 		int found_status=get_node_by_path(path,0,inode);
@@ -1170,7 +1171,6 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			printf("cannot open file, wasn't found.\n");
 			return -1;
 		}
-	// Step 2: Based on size and offset, read its data blocks from disk
 	// Step 2: Based on size and offset, read its data blocks from disk
 	int numBytesWritten=0;
 	int numBlockOffset=offset/BLOCK_SIZE;
@@ -1182,46 +1182,101 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 	char* bufferTail=buffer;
 	int* direct_ptr_block=malloc(BLOCK_SIZE);
-
+	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
+	bio_read(DATA_BITMAP_BLOCK,data_bitmap);
 	if(numBlockOffset<16){
 
 		//first read direct ptrs
 		for(direct_ptr_index=numBlockOffset;direct_ptr_index<16;direct_ptr_index++){
-			bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
-			//if number of bytes to read in the block is less than the desired size remaining
-			printf("size - numbytes written is %d\n",size-numBytesWritten);
+			//check if the data block has been initialized
+			if(inode->direct_ptr[direct_ptr_index]!=-1 && get_bitmap(data_bitmap,inode->direct_ptr[direct_ptr_index])==1){
 
-			if(BLOCK_SIZE-numByteOffset<=size-numBytesWritten){
-				memcpy(direct_data_block,bufferTail,BLOCK_SIZE-numByteOffset);
+				bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+				//if number of bytes to read in the block is less than the desired size remaining
+				printf("size - numbytes written is %d\n",size-numBytesWritten);
 
-				bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+				if(BLOCK_SIZE-numByteOffset<=size-numBytesWritten){
+					memcpy(direct_data_block,bufferTail,BLOCK_SIZE-numByteOffset);
 
-				printf("data block is %s\n",direct_data_block);
-				bufferTail+=BLOCK_SIZE-numByteOffset;
-				numBytesWritten+=BLOCK_SIZE-numByteOffset;
-			}
-			else if(size-numBytesWritten==0){
-				printf("numBytesWritten is %d\n",numBytesWritten);
-				return 0;//numBytesWritten;
-			}
-			else{
-				memcpy(bufferTail,direct_data_block,size-numBytesWritten);
-				bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+					bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+					printf("data block is %s\n",direct_data_block);
+					bufferTail+=BLOCK_SIZE-numByteOffset;
+					numBytesWritten+=BLOCK_SIZE-numByteOffset;
+					inode->size+=BLOCK_SIZE-numByteOffset;
 
-				numBytesWritten+=size-numBytesWritten;
-				//TODO: free here
-				return numBytesWritten;
-			}
-			numByteOffset=0;
+				}
+				else if(size-numBytesWritten==0){
+					printf("numBytesWritten is %d\n",numBytesWritten);
+					//Set time
+					time(& (inode->vstat.st_mtime));
+					writei(inode->ino,inode);
+					return numBytesWritten;
+				}
+				else{
+					memcpy(bufferTail,direct_data_block,size-numBytesWritten);
+					bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+					inode->size+=size-numBytesWritten;
+					numBytesWritten+=size-numBytesWritten;
+					//TODO: free here
+					time(& (inode->vstat.st_mtime));
+					writei(inode->ino,inode);
+					printf("numBytesWritten is %d\n",numBytesWritten);
+					return numBytesWritten;
+				}
+				numByteOffset=0;
 		}
-		//if we have read everything, return;
-		if(numBytesWritten>=size){
-			//do some freeing
+	//if the data block has not been intialized
+	else{
+		//initialize a data block
+		printf("should create a new data block\n");
+		int new_data_block=get_avail_blkno();
+		inode->direct_ptr[direct_ptr_index]=new_data_block;
+
+		//now that we have initialized, let's write the data
+		bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+		//if number of bytes to read in the block is less than the desired size remaining
+		printf("size - numbytes written is %d\n",size-numBytesWritten);
+
+		if(BLOCK_SIZE-numByteOffset<=size-numBytesWritten){
+			memcpy(direct_data_block,bufferTail,BLOCK_SIZE-numByteOffset);
+
+			bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
+			inode->size+=BLOCK_SIZE-numByteOffset;
+			printf("data block is %s\n",direct_data_block);
+			bufferTail+=BLOCK_SIZE-numByteOffset;
+			numBytesWritten+=BLOCK_SIZE-numByteOffset;
+		}
+		else if(size-numBytesWritten==0){
+			printf("numBytesWritten is %d\n",numBytesWritten);
+			time(& (inode->vstat.st_mtime));
+			writei(inode->ino,inode);
 			return numBytesWritten;
 		}
+		else{
+			memcpy(bufferTail,direct_data_block,size-numBytesWritten);
+			bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
 
-		//otherwise there is still data to be read, start reading indirect blocks
-		for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
+			numBytesWritten+=size-numBytesWritten;
+			//TODO: free here
+			time(& (inode->vstat.st_mtime));
+			writei(inode->ino,inode);
+			printf("numBytesWritten is %d\n",numBytesWritten);
+
+			return numBytesWritten;
+		}
+		numByteOffset=0;
+	}
+}
+	//if we have read everything, return;
+	if(numBytesWritten>=size){
+		//do some freeing
+		time(& (inode->vstat.st_mtime));
+		writei(inode->ino,inode);
+		return numBytesWritten;
+	}
+
+	//otherwise there is still data to be read, start reading indirect blocks
+	for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
 			//read the entire block pointed to by indirect pointer
 			bio_read(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index],indirect_data_block);
 			for(direct_ptr_index=0;direct_ptr_index<BLOCK_SIZE/sizeof(int);direct_ptr_index++){
@@ -1239,6 +1294,8 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 					memcpy(direct_data_block,bufferTail,size-numBytesWritten);
 					bio_write(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
 					numBytesWritten+=size-numBytesWritten;
+					time(& (inode->vstat.st_mtime));
+					writei(inode->ino,inode);
 					return numBytesWritten;
 				}
 				numByteOffset=0;

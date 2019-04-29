@@ -24,13 +24,15 @@ int main(int argc, char **argv) {
 
 	int i, fd = 0, ret = 0;
 	struct stat st;
-
+/*
 	if ((fd = creat(TESTDIR "/file", FILEPERM)) < 0) {
 		perror("creat");
 		printf("TEST 1: File create failure \n");
 		exit(1);
 	}
 	printf("TEST 1: File create Success \n");
+	*/
+	fd=open(TESTDIR "/file", O_WRONLY | O_APPEND | O_CREAT, 0777);
 	printf("my test: fd is %d\n",fd);
 
 	/* Perform sequential writes */
@@ -39,11 +41,16 @@ int main(int argc, char **argv) {
 		memset(buf, 0x61 + i, BLOCKSIZE);
 
 		// if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
-		write(fd, buf, BLOCKSIZE);
-		printf("wroten\n");
+		int numBytesWritten=write(fd, buf, BLOCKSIZE);
+		printf("wrote %d bytes\n",numBytesWritten);
 		memset(buf, 0, BLOCKSIZE);
-		read(fd, buf, BLOCKSIZE);
-		printf("before exiting, we read: %s\n",buf);
+		// lseek(fd, 0, SEEK_SET);   /* seek to start of file */
+
+		printf("before read: fd is %d\n",fd);
+		perror("before read, should be success: \n");
+		int numBytesRead=read(fd, buf, BLOCKSIZE);
+		perror("after read, error is: \n");
+		printf("before exiting, we read: %d bytes \n and they are: %s\n",numBytesRead,buf);
 		exit(1);
 	}
 

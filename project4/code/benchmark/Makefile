@@ -2,7 +2,7 @@ CC = gcc
 CFLAGS = -g
 
 warmup:
-	$(CC) $(CFLAGS) -o simple_test simple_test.c
+	$(CC) $(CFLAGS) -o simple_test simple_test_orig.c
 
 clean:
 	rm -rf simple_test
