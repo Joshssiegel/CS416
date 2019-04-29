@@ -14,7 +14,7 @@
 #define N_FILES 100
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
-#define ITERS 100
+#define ITERS 10//0
 #define ITERS_LARGE 2048
 #define FILEPERM 0666
 #define DIRPERM 0755
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
 
 	/* TEST 7: directory remove test */
 	if ((ret = rmdir(TESTDIR "/files")) < 0) {
-		perror("mkdir");
+		perror("rmdir");
 		printf("TEST 7: Directory remove failure \n");
 		exit(1);
 	}

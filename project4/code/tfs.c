@@ -977,14 +977,11 @@ static int tfs_rmdir(const char *path) {
 	int dir_ptr_index=0;
 	//check that the directory to remove is empty
 	for(dir_ptr_index=0;dir_ptr_index<16;dir_ptr_index++){
-		if(target_inode->direct_ptr[dir_ptr_index]==-1 && get_bitmap(data_bitmap,target_inode->direct_ptr[dir_ptr_index])==1){
-			printf("Please remove empty, allocated data block before removing directory\n");
-			return -1;
-		}
-		if(target_inode->direct_ptr[dir_ptr_index]!=-1 || get_bitmap(data_bitmap,target_inode->direct_ptr[dir_ptr_index])==1){
+		if(target_inode->direct_ptr[dir_ptr_index]!=-1 && get_bitmap(data_bitmap,target_inode->direct_ptr[dir_ptr_index])==1){
 			printf("Directory is not empty. Cannot remove.\n");
 			return -1;
 		}
+
 	}
 	// Step 4: Clear inode bitmap and its data block
 	bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
@@ -1274,7 +1271,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 		writei(inode->ino,inode);
 		return numBytesWritten;
 	}
-
+	printf("writing indirect blocks\n");
 	//otherwise there is still data to be read, start reading indirect blocks
 	for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
 			//read the entire block pointed to by indirect pointer
@@ -1304,6 +1301,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 		}
 
 	}
+	printf("Need to implement writing for large offset\n");
 
 	// Step 3: Write the correct amount of data from offset to disk
 
