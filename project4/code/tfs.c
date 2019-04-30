@@ -1071,7 +1071,7 @@ static int tfs_open(const char *path, struct fuse_file_info *fi) {
 
 static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 	printf("***********************in tfs_read***********************\n");
-
+	return 0;
 	// Step 1: You could call get_node_by_path() to get inode from path
 	struct inode* inode=malloc(BLOCK_SIZE);
 	int found_status=get_node_by_path(path,0,inode);
@@ -1095,6 +1095,9 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 
 		//first read direct ptrs
 		for(direct_ptr_index=numBlockOffset;direct_ptr_index<16;direct_ptr_index++){
+			if(inode->direct_ptr[direct_ptr_index]==-1){ // then trying to read from an unallocated block
+				continue;
+			}
 			bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
 			direct_data_block+=numByteOffset;
 			//if number of bytes to read in the block is less than the desired size remaining
@@ -1122,8 +1125,14 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 		//otherwise there is still data to be read, start reading indirect blocks
 		for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
 			//read the entire block pointed to by indirect pointer
+			if(inode->indirect_ptr[indirect_ptr_index]==-1){ // then trying to read from an unallocated block
+				continue;
+			}
 			bio_read(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index],indirect_data_block);
 			for(direct_ptr_index=0;direct_ptr_index<BLOCK_SIZE/sizeof(int);direct_ptr_index++){
+				if(inode->direct_ptr[direct_ptr_index]==-1){ // then trying to read from an unallocated block
+					continue;
+				}
 				//read the block pointed to by the direct pointers in the block pointed to by the indirect poointer
 				bio_read(SB->d_start_blk+indirect_data_block[direct_ptr_index],direct_data_block);
 
