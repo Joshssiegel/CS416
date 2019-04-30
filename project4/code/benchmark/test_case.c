@@ -14,7 +14,7 @@
 #define N_FILES 100
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
-#define ITERS 10//0
+#define ITERS 100
 #define ITERS_LARGE 2048
 #define FILEPERM 0666
 #define DIRPERM 0755
@@ -59,7 +59,6 @@ int main(int argc, char **argv) {
 		printf("TEST 3: File close failure \n");
 	}
 	printf("TEST 3: File close Success \n");
-
 
 	/* Open for reading */
 	if ((fd = open(TESTDIR "/file", FILEPERM)) < 0) {
@@ -159,18 +158,41 @@ int main(int argc, char **argv) {
 		perror("creat large file fail");
 		exit(1);
 	}
-	// char *buf2 = malloc(20*BLOCKSIZE);
-	// for (i = 0; i < 1; i++) {
-	// 	//memset with some random data
-	// 	memset(buf2, 0x61 + i % 26, BLOCKSIZE*20);
-  //
-	// 	if (write(fd, buf2, 20*BLOCKSIZE) != 20*BLOCKSIZE) {
-	// 		printf("TEST 8.5: Large file one time write failure \n");
-	// 		exit(1);
-	// 	}
-	// }
-	// free(buf2);
 
+	/*
+	char *buf2 = malloc(20*BLOCKSIZE);
+	for(i=0;i<20;i++){
+		memset(buf2+i*BLOCKSIZE, 0x61 + i % 26, BLOCKSIZE);
+
+	}
+	for (i = 0; i < 1; i++) {
+		//memset with some random data
+
+		if (write(fd, buf2, 20*BLOCKSIZE) != 20*BLOCKSIZE) {
+			printf("TEST 8.5: Large file one time write failure \n");
+			exit(1);
+		}
+
+
+	}
+	memset(buf2, 0, BLOCKSIZE*20);
+	if (close(fd) < 0) {
+		perror("close largefile");
+		exit(1);
+	}
+
+	if ((fd = open(TESTDIR "/largefile", FILEPERM)) < 0) {
+		perror("open");
+		exit(1);
+	}
+	if (pread(fd, buf2, 0, 20*BLOCKSIZE) != 20*BLOCKSIZE) {
+		perror("pread");
+		printf("TEST 8.5: Large file read failure \n");
+		exit(1);
+	}
+	printf("rread : %s\n",buf2);
+	free(buf2);
+	*/
 	/* Perform sequential writes */
 	for (i = 0; i < ITERS_LARGE; i++) {
 		//memset with some random data

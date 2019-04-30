@@ -170,7 +170,7 @@ int writei(uint16_t ino, struct inode *inode) {
  * directory operations
  */
 int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *dirent) {
-	printf("searching for %s in inode %d inside dir find\n",fname, ino);
+	// printf("searching for %s in inode %d inside dir find\n",fname, ino);
   // Step 1: Call readi() to get the inode using ino (inode number of current directory)
 	struct inode* dir_inode=malloc(sizeof(struct inode));
 	int retstatus=readi(ino,dir_inode);
@@ -197,12 +197,12 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 	for (data_block_index=0;data_block_index<16;data_block_index++){
 		//check the data bitmap to see if this data block is empty
 		if(dir_inode_data[data_block_index]==-1){
-			printf("in find: data block # %d is empty\n",data_block_index);
+			// printf("in find: data block # %d is empty\n",data_block_index);
 			//skip to next data block
 			continue;
 		}
 		else{
-			printf("checking non-empty index %d: data block # %d \n",data_block_index,dir_inode_data[data_block_index]);
+			// printf("checking non-empty index %d: data block # %d \n",data_block_index,dir_inode_data[data_block_index]);
 
 		}
 		//read the allocated data block containing dir entries
@@ -218,13 +218,13 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 			}
 			//compare the name of the entry with the new entry name
 			if(strcmp(dir_entry->name,fname)==0){
-				printf("Found %s\n",fname);
+				printf("dir find: Found %s\n",fname);
 				*dirent=*dir_entry;
 				//returning the block number that we found the dir entr in.
 				return dir_inode_data[data_block_index];
 			}
 			else{
-				printf("In find: compared %s to %s\n",dir_entry->name,fname);
+				// printf("In find: compared %s to %s\n",dir_entry->name,fname);
 			}
 
 		}
@@ -513,7 +513,7 @@ int split_dir_path(char* dir_path, char* first_dir, char* remaining){
  * namei operation
  */
 int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
-	printf("searching for %s in get_node_by_path\n",path);
+	// printf("searching for %s in get_node_by_path\n",path);
 	// Step 1: Resolve the path name, walk through path, and finally, find its inode.
 	// Note: You could either implement it in a iterative way or recursive way
 	//Make sure to calloc so null termnator is included
@@ -526,14 +526,14 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	char* dir_path_name=calloc(1024,sizeof(char));
 	char* file_path_name=calloc(256,sizeof(char));
 	get_directory_and_file_name(path,dir_path_name,file_path_name);
-	printf("dir path is: %s and file is: %s\n",dir_path_name,file_path_name);
+	// printf("dir path is: %s and file is: %s\n",dir_path_name,file_path_name);
 	char* first_dir=calloc(512,sizeof(char));
 	char* remaining=calloc(1024,sizeof(char));
 	int has_slash=0;
 	uint16_t prev_dir_ino=0;
 	struct dirent * dir=calloc(1,sizeof(struct dirent));
 	if(strlen(dir_path_name)==0){
-		printf("dir path is just root.\n");
+		// printf("dir path is just root.\n");
 		has_slash=-1;
 	}
 	while(has_slash!=-1){
@@ -551,7 +551,7 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 			memset(first_dir,0,512);
 			break;
 		}
-		printf("split of dir path is: %s and file is: %s\n",first_dir,remaining);
+		// printf("split of dir path is: %s and file is: %s\n",first_dir,remaining);
 		int find_status=dir_find(prev_dir_ino, first_dir, strlen(first_dir)+1, dir);
 		if(find_status<0){
 			printf("node doesn't exist\n");
@@ -1063,7 +1063,7 @@ static int tfs_open(const char *path, struct fuse_file_info *fi) {
 	// fi->fh=inode->ino;
 	// fd_table[fd]=inode->ino;
 	// printf("in open: gave file descriptor %d to file %s\n",fd,path);
-	printf("found in open\n");
+	printf("found in open, returning 0\n");
 	return 0;
 }
 
@@ -1108,7 +1108,11 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 				memcpy(bufferTail,direct_data_block,size-numBytesRead);
 				bufferTail+=size-numBytesRead;
 				numBytesRead+=size-numBytesRead;
+
 				//TODO: free here
+
+				time(& (inode->vstat.st_atime));
+        writei(inode->ino,inode);
 				return numBytesRead;
 			}
 			numByteOffset=0;
@@ -1116,6 +1120,9 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 		//if we have read everything, return;
 		if(numBytesRead>=size){
 			//do some freeing
+
+			time(& (inode->vstat.st_atime));
+			writei(inode->ino,inode);
 			return numBytesRead;
 		}
 
@@ -1143,6 +1150,8 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 					memcpy(bufferTail,direct_data_block,size-numBytesRead);
 					bufferTail+=size-numBytesRead;
 					numBytesRead+=size-numBytesRead;
+					time(& (inode->vstat.st_atime));
+	        writei(inode->ino,inode);
 					return numBytesRead;
 				}
 				numByteOffset=0;
@@ -1151,14 +1160,54 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 		}
 
 	}
-	else{
-		//must start from indirect ptr
-		//TODO: this v
-		printf("must implement offsetting by larger than 16 blocks\n");
-		//calculate offset using indirect ptrs
-		indirect_ptr_index=(numBlockOffset-16)/(BLOCK_SIZE/sizeof(int));
-		//do shit
-	}
+	// block offset greater than or equal to 16
+else{
+	printf("Offset %d >= 16\n", numBlockOffset);
+  int indirectOffset = offset - 16*BLOCK_SIZE; //
+  int numOffsetBlocks = indirectOffset/BLOCK_SIZE;
+  int numDirectBlocksPerIndirectPtr = BLOCK_SIZE/sizeof(int);
+  int numIndirectOffsetBlocks = numOffsetBlocks/numDirectBlocksPerIndirectPtr;
+  int directBlockOffset = numOffsetBlocks%numDirectBlocksPerIndirectPtr;
+  numByteOffset = indirectOffset%BLOCK_SIZE;
+	// previouslyUnallocated = 0;
+
+	// printf("This offset leads us to indirect slot #%d and inside that to direct block slot #%d with a byte offset of %d inside it\n", numIndirectOffsetBlocks, directBlockOffset, numByteOffset);
+
+//16*blocksize + 50*blocksize + 50bytes ==> 16+50 blocks + 50 bytes ==> 50 indirect blocks + 50 bytes ==> 50/numDirectBlocksPerIndirectPtr is the indirect index, then 50%numDirectBlocksPerIndirectPtr is the block index inside that then offset%blocksize gives the byte offset. ==>
+
+
+for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr_index++){
+		if(inode->indirect_ptr[indirect_ptr_index]==-1){ // then unallocated
+			continue;
+		}
+		//read the entire block pointed to by indirect pointer
+    bio_read(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index],indirect_data_block);
+    for(direct_ptr_index=directBlockOffset;direct_ptr_index<numDirectBlocksPerIndirectPtr;direct_ptr_index++){
+			//initializing a block of allocated direct pointers
+			if(indirect_data_block[direct_ptr_index]==-1){
+				continue;
+			}
+      //read the block pointed to by the direct pointers in the block pointed to by the indirect poointer
+      bio_read(SB->d_start_blk+indirect_data_block[direct_ptr_index],direct_data_block);
+
+      //if number of bytes to read in the block is less than the desired size remaining
+      if(BLOCK_SIZE-numByteOffset<size-numBytesRead){
+        memcpy(bufferTail,direct_data_block,BLOCK_SIZE-numByteOffset);
+        bufferTail+=BLOCK_SIZE-numByteOffset;
+        numBytesRead+=BLOCK_SIZE-numByteOffset;
+      }
+      else{
+        memcpy(bufferTail,direct_data_block,size-numBytesRead);
+        numBytesRead+=size-numBytesRead;
+        time(& (inode->vstat.st_atime));
+        writei(inode->ino,inode);
+        return numBytesRead;
+      }
+      numByteOffset=0;
+
+    }
+  }
+}
 	// Step 3: copy the correct amount of data from offset to buffer
 
 	// Note: this function should return the amount of bytes you copied to buffer
@@ -1335,7 +1384,8 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 	}
 	////////////////////////////////////////////////////////
-	else{ // block offset greater than or equal to 16
+	// block offset greater than or equal to 16
+	else{
 	printf("Offset %d >= 16\n", numBlockOffset);
   int indirectOffset = offset - 16*BLOCK_SIZE; //
   int numOffsetBlocks = indirectOffset/BLOCK_SIZE;
@@ -1398,7 +1448,6 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 
     }
   }
-printf("Need to implement writing for large offset\n");
 }
 ///////////////////////////////////////////////////////////
 
