@@ -159,6 +159,17 @@ int main(int argc, char **argv) {
 		perror("creat large file fail");
 		exit(1);
 	}
+	// char *buf2 = malloc(20*BLOCKSIZE);
+	// for (i = 0; i < 1; i++) {
+	// 	//memset with some random data
+	// 	memset(buf2, 0x61 + i % 26, BLOCKSIZE*20);
+  //
+	// 	if (write(fd, buf2, 20*BLOCKSIZE) != 20*BLOCKSIZE) {
+	// 		printf("TEST 8.5: Large file one time write failure \n");
+	// 		exit(1);
+	// 	}
+	// }
+	// free(buf2);
 
 	/* Perform sequential writes */
 	for (i = 0; i < ITERS_LARGE; i++) {
@@ -173,7 +184,7 @@ int main(int argc, char **argv) {
 
 	fstat(fd, &st);
 	if (st.st_size != ITERS_LARGE*BLOCKSIZE) {
-		printf("TEST 9: Large file write failure \n");
+		printf("TEST 9: Large file write size is wrong: %d NOT EQUAL TO %d failure \n",st.st_size, ITERS_LARGE*BLOCKSIZE);
 		exit(1);
 	}
 	printf("TEST 9: Large file write success \n");
