@@ -17,22 +17,41 @@
 #define ITERS 5
 #define FILEPERM 0666
 #define DIRPERM 0755
+#define ITERS_LARGE 2048
 
 char buf[BLOCKSIZE];
 
 int main(int argc, char **argv) {
-
-	int i, fd = 0, ret = 0;
+	int i,j, fd = 0, ret = 0;
 	struct stat st;
-
+	for(i=0;i<10000;i++){
 	if ((fd = creat(TESTDIR "/file", FILEPERM)) < 0) {
 		perror("creat");
 		printf("TEST 1: File create failure \n");
 		exit(1);
 	}
+
+	for (j = 0; j < ITERS_LARGE; j++) {
+		//memset with some random data
+		memset(buf, 0x61 + i % 26, BLOCKSIZE);
+
+		if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
+			printf("TEST 9: Large file write failure \n");
+			exit(1);
+		}
+	}
+
+	close(fd);
+	if ((ret = unlink(TESTDIR "/file")) < 0) {
+		perror("unlink");
+		printf("TEST 1: File unlink failure \n");
+		exit(1);
+	}
+	printf("&&&iteration %d was a success\n",i);
+}
 	printf("TEST 1: File create Success \n");
 
-
+	return;
 	/* Perform sequential writes */
 	for (i = 0; i < ITERS; i++) {
 		//memset with some random data
