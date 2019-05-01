@@ -966,7 +966,7 @@ static int tfs_rmdir(const char *path) {
 		return -1;
 	}
 	int found_target=get_node_by_path(path, 0,target_inode);
-	if(found_parent<0){
+	if(found_target<0){
 		printf("target directory doesn't exist.\n");
 		return -1;
 	}
@@ -1382,6 +1382,10 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			}
 		}
 
+		if(size-numBytesWritten>0){
+			printf("Asked to write larger file than supported. Wrote to max.\n");
+			return numBytesWritten;
+		}
 	}
 	////////////////////////////////////////////////////////
 	// block offset greater than or equal to 16
@@ -1394,9 +1398,11 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
   int directBlockOffset = numOffsetBlocks%numDirectBlocksPerIndirectPtr;
   numByteOffset = indirectOffset%BLOCK_SIZE;
 	// previouslyUnallocated = 0;
-
 	printf("This offset leads us to indirect slot #%d and inside that to direct block slot #%d with a byte offset of %d inside it\n", numIndirectOffsetBlocks, directBlockOffset, numByteOffset);
-
+	if(numIndirectOffsetBlocks>=8){
+		printf("Trying to write larger file than supported\n");
+		return -1;
+	}
 //16*blocksize + 50*blocksize + 50bytes ==> 16+50 blocks + 50 bytes ==> 50 indirect blocks + 50 bytes ==> 50/numDirectBlocksPerIndirectPtr is the indirect index, then 50%numDirectBlocksPerIndirectPtr is the block index inside that then offset%blocksize gives the byte offset. ==>
 
 
@@ -1474,7 +1480,6 @@ void initialize_direct_ptr_block(int blockNum){
 
 static int tfs_unlink(const char *path) {
 	printf("***********************in tfs_unlink***********************\n");
-
 	// Step 1: Use dirname() and basename() to separate parent directory path and target file name
 	char* dir_name=calloc(1,1024);
 	char* file_name=calloc(1,1024);
@@ -1490,11 +1495,17 @@ static int tfs_unlink(const char *path) {
 		return -1;
 	}
 	int found_target=get_node_by_path(path, 0,target_inode);
-	if(found_parent<0){
+	if(found_target<0){
 		printf("target directory doesn't exist.\n");
 		return -1;
 	}
-	printf("about to clear bitmaps\n");
+	target_inode->link-=1;
+	if(target_inode->link>0){
+		printf("not removing file because it still has %d links\n",target_inode->link);
+		exit(1);
+		// return 0;
+	}
+	// printf("about to clear bitmaps\n");
 	// Step 3: Clear data block bitmap of target file
 	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
 	bio_read(DATA_BITMAP_BLOCK, data_bitmap);
@@ -1509,22 +1520,30 @@ static int tfs_unlink(const char *path) {
 			unset_bitmap(data_bitmap,target_inode->direct_ptr[direct_ptr_index]);
 		}
 	}
-	printf("about to clear indirect ptrs bitmaps\n");
-	//TODO: make sure it goes to 8
-	for(indirect_ptr_index=0;indirect_ptr_index<1;indirect_ptr_index++){
-		printf('\nindirect index %d\n',indirect_ptr_index);
+	// printf("about to clear indirect ptrs bitmaps\n");
+	for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
+		// printf("\nindirect index %d\n",indirect_ptr_index);
 		if(target_inode->indirect_ptr[indirect_ptr_index]!=-1){
-			bio_read(target_inode->indirect_ptr[indirect_ptr_index],direct_ptr_block);
+			bio_read(SB->d_start_blk+target_inode->indirect_ptr[indirect_ptr_index],direct_ptr_block);
+			// printf("indirect index %d points to direct ptr block %d\n",indirect_ptr_index,target_inode->indirect_ptr[indirect_ptr_index]);
 			//clear every allocated data block in the direct ptr block
 			for(direct_ptr_index=0;direct_ptr_index<BLOCK_SIZE/sizeof(int);direct_ptr_index++){
+
 				if(direct_ptr_block[direct_ptr_index]!=-1){
+
 					unset_bitmap(data_bitmap,direct_ptr_block[direct_ptr_index]);
+					// printf("unset bitmap %d it should be 0: %d\n",direct_ptr_block[direct_ptr_index], data_bitmap[direct_ptr_block[direct_ptr_index]]);
+					direct_ptr_block[direct_ptr_index]=-1;
 				}
+
+
 			}
+			//write the changes back to disk
+			bio_write(SB->d_start_blk+target_inode->indirect_ptr[indirect_ptr_index],direct_ptr_block);
 			//clear the direct ptr block's data bitmap
-			printf("about to clear indirect ptr index %d bitmap which is block %d\n", indirect_ptr_index,target_inode->indirect_ptr[indirect_ptr_index]);
+			// printf("about to clear indirect ptr index %d bitmap which is block %d\n", indirect_ptr_index,target_inode->indirect_ptr[indirect_ptr_index]);
 			unset_bitmap(data_bitmap,target_inode->indirect_ptr[indirect_ptr_index]);
-			printf("cleared it\n");
+			// printf("cleared it\n");
 		}
 	}
 	printf("writing data bitmap to disk\n");
@@ -1534,10 +1553,11 @@ static int tfs_unlink(const char *path) {
 	// Step 4: Clear inode bitmap and its data block -----> Didn't we already clear the data blocks?
 	unset_bitmap(inode_bitmap,target_inode->ino);
 	bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+	// writei(target_inode->ino, target_inode);
 
 	// Step 5: Call get_node_by_path() to get inode of parent directory  -> done above
 	// Step 6: Call dir_remove() to remove directory entry of target file in its parent directory
-	printf("about to dir remove\n");
+	// printf("about to dir remove\n");
 
 	dir_remove(*parent_inode, file_name, strlen(file_name));
 	free(dir_name);

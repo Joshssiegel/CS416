@@ -15,7 +15,7 @@
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
 #define ITERS 100
-#define ITERS_LARGE 17//2048
+#define ITERS_LARGE 2048
 #define FILEPERM 0666
 #define DIRPERM 0755
 
