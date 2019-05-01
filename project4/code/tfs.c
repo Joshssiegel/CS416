@@ -35,7 +35,6 @@ int disk=-1;
 struct superblock* SB;
 int inodes_per_block;
 int num_entries_per_data_block;
-int* fd_table;
 
 struct inode* getInode(int inum){
 	//get the block num by adding starting block by floor of inode num / inodes per block
@@ -201,10 +200,7 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 			//skip to next data block
 			continue;
 		}
-		else{
-			// printf("checking non-empty index %d: data block # %d \n",data_block_index,dir_inode_data[data_block_index]);
 
-		}
 		//read the allocated data block containing dir entries
 		bio_read(SB->d_start_blk+dir_inode_data[data_block_index],data_block);
 		//iterate through all the dir entries in this data block
@@ -221,15 +217,15 @@ int dir_find(uint16_t ino, const char *fname, size_t name_len, struct dirent *di
 				printf("dir find: Found %s\n",fname);
 				*dirent=*dir_entry;
 				//returning the block number that we found the dir entr in.
+				free(dir_inode);
+				free(data_block);
 				return dir_inode_data[data_block_index];
 			}
-			else{
-				// printf("In find: compared %s to %s\n",dir_entry->name,fname);
-			}
-
 		}
 	}
 	printf("did not find %s in dir find\n",fname);
+	free(dir_inode);
+	free(data_block);
 	return -1;
 }
 
@@ -542,6 +538,11 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 			int find_status=dir_find(prev_dir_ino, dir_path_name, strlen(dir_path_name)+1, dir);
 			if(find_status<0){
 				printf("node doesn't exist\n");
+				free(dir_path_name);
+				free(file_path_name);
+				free(first_dir);
+				free(remaining);
+				free(dir);
 				return find_status;
 			}
 			prev_dir_ino=dir->ino;
@@ -555,6 +556,11 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 		int find_status=dir_find(prev_dir_ino, first_dir, strlen(first_dir)+1, dir);
 		if(find_status<0){
 			printf("node doesn't exist\n");
+			free(dir_path_name);
+			free(file_path_name);
+			free(first_dir);
+			free(remaining);
+			free(dir);
 			return find_status;
 		}
 		prev_dir_ino=dir->ino;
@@ -567,6 +573,11 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	int find_status=dir_find(prev_dir_ino, file_path_name, strlen(file_path_name)+1, dir);
 	if(find_status<0){
 		printf("&&&& couldn't find the file\n");
+		free(dir_path_name);
+		free(file_path_name);
+		free(first_dir);
+		free(remaining);
+		free(dir);
 		return find_status;
 	}
 	struct inode* final_inode=calloc(1,sizeof(struct inode));
@@ -574,10 +585,20 @@ int get_node_by_path(const char *path, uint16_t ino, struct inode *inode) {
 	if(read_status<0)
 		{
 			printf("bad read\n");
+			free(dir_path_name);
+			free(file_path_name);
+			free(first_dir);
+			free(remaining);
+			free(dir);
 			return read_status;
 		}
 	printf("&&&& found inode %d\n",final_inode->ino);
 	memcpy(inode,final_inode,sizeof(struct inode));
+	free(dir_path_name);
+	free(file_path_name);
+	free(first_dir);
+	free(remaining);
+	free(dir);
 	return read_status;
 }
 
@@ -700,12 +721,8 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 	printf("init************\n");
 	inodes_per_block=BLOCK_SIZE/sizeof(struct inode);
 	num_entries_per_data_block=BLOCK_SIZE/sizeof(struct dirent);
-	fd_table=malloc((MAX_INUM+1)*sizeof(int));
-	//initialize table to -1;
-	int i=0;
-	for(i=0;i<MAX_INUM+1;i++){
-		fd_table[i]=-1;
-	}
+
+
 	// Step 1a: If disk file is not found, call mkfs
 	disk=dev_open(diskfile_path);
 	if(disk==-1){
@@ -725,72 +742,18 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 			if(SB->magic_num!=MAGIC_NUM){
 				//TODO: something when disk isn't ours
 				printf("magic nums don't match\n");
+				exit(-1);
 			}
+
 	}
 
-	printf("inode start location: %d \n",SB->i_start_blk );
-
-	printf("inodes per block: %d with an inode size of %d\n",(int)inodes_per_block,(int)sizeof(struct inode));
-	/*printf("\n------------TESTING boi-----------------\n");
-	printf("\nsakd--------\n");
-	struct inode* test_inode = calloc(1,sizeof(struct inode));
-	// printf("\nsfkljkdfea test_inode\n");
-
-
-	initialize_dir_inode(test_inode);
-	printf("initialized file inode 1\n");
-	writei(test_inode->ino, test_inode);
-	struct inode* test2_inode = calloc(1,sizeof(struct inode));
-	initialize_dir_inode(test2_inode);
-	writei(test2_inode->ino, test2_inode);
-
-	// readi(1,test2_inode);
-	// printf("test 2's inode number is: %d\n",test2_inode->ino);
-
-	struct inode* root_inode = calloc(1,sizeof(struct inode));
-	readi(0,root_inode);
-	printf("root's inode number is: %d\n",root_inode->ino);
-	dir_add(*root_inode, 1, "foo\0", 4);
-	dir_add(*test_inode, 2, "bar\0", 4);
-	struct dirent *foo_dirent=calloc(1,sizeof(struct dirent));
-	dir_find(0, "foo\0", 4, foo_dirent);
-	printf("foo's dirent name is %s\n",foo_dirent->name);
-	readi(0,root_inode);
-	// dir_remove(*root_inode, "foo\0", 4);
-	// printf("foo has been removed\n");
-	// dir_find(0, "foo\0", 4, foo_dirent);
-	free(foo_dirent);
-
-	foo_dirent=calloc(1,sizeof(struct dirent));
-	dir_find(0, "foo\0", 4, foo_dirent);
-	printf("foo's dirent name is %s\n",foo_dirent->name);
-	printf("--------------Searching for a node--------------\n");
-	struct inode* answer=malloc(sizeof(struct inode));
-	printf("\n&&&&Should find\n");
-	get_node_by_path("/foo/bar/\0",0,answer);
-	printf("\n&&&&Should not find\n");
-	get_node_by_path("/foo/bar/a\0",0,answer);
-	printf("\n&&&&Should find\n");
-	get_node_by_path("foo/bar/\0",0,answer);
-	printf("\n&&&&Should not find\n");
-	get_node_by_path("foo/bar/a\0",0,answer);
-	printf("\n&&&&Should find\n");
-	get_node_by_path("foo/bar\0",0,answer);
-	struct fuse_file_info *fi=calloc(1,sizeof(struct fuse_file_info));
-
-
-	//Update access time within vstat?
-	// for(i=0;i<SB->max_dnum;i++){
-	// 	printf("available blkno %d\n ",get_avail_blkno());
-	// }
-	*/
 	return NULL;
 }
 
 static void tfs_destroy(void *userdata) {
 
 	// Step 1: De-allocate in-memory data structures
-
+	free(SB);
 	// Step 2: Close diskfile
 	dev_close(disk);
 
@@ -818,7 +781,6 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		stbuf->st_mode=inode->vstat.st_mode;
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
-		printf("size of inode is %d\n",stbuf->st_size);
 		stbuf->st_ino=inode->ino;
 		//TODO: Ask if we should update access time, or just give last access?
 			//TODO: IF update access time, update for inode. If not, get it from inode
@@ -826,18 +788,10 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		free(inode);
 		stbuf->st_uid=getuid();
 		stbuf->st_gid=getgid();
+		stbuf->st_mtime=inode->vstat.st_mtime;
 	return 0;
 }
-int find_next_file_descriptor(){
-	int i =1;
-	for(i=1;i<MAX_INUM+1;i++){
-		if(fd_table[i]==-1){
-			return i;
-		}
-	}
-	printf("no file descriptors available\n");
-	return -1;
-}
+
 static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 	//TODO: Put file descriptor in fi->fh and in memory
 	printf("***********************in tfs_opendir***********************\n");
@@ -1213,7 +1167,7 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 
 static int tfs_write(const char *path, const char *buffer, size_t size, off_t offset, struct fuse_file_info *fi) {
 	printf("***********************in tfs_write***********************\n");
-	printf("Asked for total block offset: %f\n", (float)((float)offset/(float)BLOCK_SIZE));
+	// printf("Asked for total block offset: %f\n", (float)((float)offset/(float)BLOCK_SIZE));
 		// Step 1: You could call get_node_by_path() to get inode from path
 		struct inode* inode=malloc(BLOCK_SIZE);
 		int found_status=get_node_by_path(path,0,inode);
@@ -1259,10 +1213,15 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 				}
 				else if(size-numBytesWritten==0){
-					printf("numBytesWritten is %d\n",numBytesWritten);
+					printf("numBytesWritten1 is %d\n",numBytesWritten);
 					//Set time
 					time(& (inode->vstat.st_mtime));
 					writei(inode->ino,inode);
+					free(inode);
+					free(direct_data_block);
+					free(indirect_data_block);
+
+					free(direct_ptr_block);
 					return numBytesWritten;
 				}
 				else{
@@ -1273,7 +1232,12 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 					//TODO: free here
 					time(& (inode->vstat.st_mtime));
 					writei(inode->ino,inode);
-					printf("numBytesWritten is %d\n",numBytesWritten);
+					// printf("numBytesWritten is %d\n",numBytesWritten);
+					free(inode);
+					free(direct_data_block);
+					free(indirect_data_block);
+
+					free(direct_ptr_block);
 					return numBytesWritten;
 				}
 				numByteOffset=0;
@@ -1300,9 +1264,13 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			numBytesWritten+=BLOCK_SIZE-numByteOffset;
 		}
 		else if(size-numBytesWritten==0){
-			printf("numBytesWritten is %d\n",numBytesWritten);
+			printf("numBytesWritten2 is %d\n",numBytesWritten);
 			time(& (inode->vstat.st_mtime));
 			writei(inode->ino,inode);
+			free(inode);
+			free(direct_data_block);
+			free(indirect_data_block);
+			free(direct_ptr_block);
 			return numBytesWritten;
 		}
 		else{
@@ -1314,8 +1282,12 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			//TODO: free here
 			time(& (inode->vstat.st_mtime));
 			writei(inode->ino,inode);
-			printf("numBytesWritten is %d\n",numBytesWritten);
-
+			printf("numBytesWritten3 is %d\n",numBytesWritten);
+			free(inode);
+			free(direct_data_block);
+			free(indirect_data_block);
+			;
+			free(direct_ptr_block);
 			return numBytesWritten;
 		}
 		numByteOffset=0;
@@ -1326,6 +1298,11 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 		//do some freeing
 		time(& (inode->vstat.st_mtime));
 		writei(inode->ino,inode);
+		free(inode);
+		free(direct_data_block);
+		free(indirect_data_block);
+		;
+		free(direct_ptr_block);
 		return numBytesWritten;
 	}
 	printf("writing indirect blocks\n");
@@ -1371,6 +1348,11 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 					numBytesWritten+=size-numBytesWritten;
 					time(& (inode->vstat.st_mtime));
 					writei(inode->ino,inode);
+					free(inode);
+					free(direct_data_block);
+					free(indirect_data_block);
+					;
+					free(direct_ptr_block);
 					return numBytesWritten;
 				}
 				numByteOffset=0;
@@ -1380,6 +1362,13 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 		if(size-numBytesWritten>0){
 			printf("Asked to write larger file than supported. Wrote to max.\n");
+			time(& (inode->vstat.st_mtime));
+			writei(inode->ino,inode);
+			free(inode);
+			free(direct_data_block);
+			free(indirect_data_block);
+			;
+			free(direct_ptr_block);
 			return numBytesWritten;
 		}
 	}
@@ -1397,6 +1386,11 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 	printf("This offset leads us to indirect slot #%d and inside that to direct block slot #%d with a byte offset of %d inside it\n", numIndirectOffsetBlocks, directBlockOffset, numByteOffset);
 	if(numIndirectOffsetBlocks>=8){
 		printf("Trying to write larger file than supported\n");
+		free(inode);
+		free(direct_data_block);
+		free(indirect_data_block);
+		;
+		free(direct_ptr_block);
 		return -1;
 	}
 //16*blocksize + 50*blocksize + 50bytes ==> 16+50 blocks + 50 bytes ==> 50 indirect blocks + 50 bytes ==> 50/numDirectBlocksPerIndirectPtr is the indirect index, then 50%numDirectBlocksPerIndirectPtr is the block index inside that then offset%blocksize gives the byte offset. ==>
@@ -1444,6 +1438,11 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
         numBytesWritten+=size-numBytesWritten;
         time(& (inode->vstat.st_mtime));
         writei(inode->ino,inode);
+				free(inode);
+				free(direct_data_block);
+				free(indirect_data_block);
+				;
+				free(direct_ptr_block);
         return numBytesWritten;
       }
       numByteOffset=0;
@@ -1454,10 +1453,11 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 ///////////////////////////////////////////////////////////
 
 
-	// Step 3: Write the correct amount of data from offset to disk
-
-	// Step 4: Update the inode info and write it to disk
-
+	free(inode);
+	free(direct_data_block);
+	free(indirect_data_block);
+	;
+	free(direct_ptr_block);
 	// Note: this function should return the amount of bytes you write to disk
 	return numBytesWritten;
 }
