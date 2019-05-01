@@ -1063,6 +1063,10 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 
 				time(& (inode->vstat.st_atime));
         writei(inode->ino,inode);
+				free(inode);
+				free(direct_data_block);
+				free(indirect_data_block);
+				free(direct_ptr_block);
 				return numBytesRead;
 			}
 			numByteOffset=0;
@@ -1073,6 +1077,10 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 
 			time(& (inode->vstat.st_atime));
 			writei(inode->ino,inode);
+			free(inode);
+			free(direct_data_block);
+			free(indirect_data_block);
+			free(direct_ptr_block);
 			return numBytesRead;
 		}
 
@@ -1102,6 +1110,10 @@ static int tfs_read(const char *path, char *buffer, size_t size, off_t offset, s
 					numBytesRead+=size-numBytesRead;
 					time(& (inode->vstat.st_atime));
 	        writei(inode->ino,inode);
+					free(inode);
+					free(direct_data_block);
+					free(indirect_data_block);
+					free(direct_ptr_block);
 					return numBytesRead;
 				}
 				numByteOffset=0;
@@ -1151,6 +1163,10 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
         numBytesRead+=size-numBytesRead;
         time(& (inode->vstat.st_atime));
         writei(inode->ino,inode);
+				free(inode);
+				free(direct_data_block);
+				free(indirect_data_block);
+				free(direct_ptr_block);
         return numBytesRead;
       }
       numByteOffset=0;
@@ -1161,6 +1177,10 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 	// Step 3: copy the correct amount of data from offset to buffer
 
 	// Note: this function should return the amount of bytes you copied to buffer
+	free(inode);
+	free(direct_data_block);
+	free(indirect_data_block);
+	free(direct_ptr_block);
 	return numBytesRead;
 }
 
@@ -1220,7 +1240,6 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 					free(inode);
 					free(direct_data_block);
 					free(indirect_data_block);
-
 					free(direct_ptr_block);
 					return numBytesWritten;
 				}
