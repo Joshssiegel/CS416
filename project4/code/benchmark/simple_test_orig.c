@@ -9,7 +9,7 @@
 #include <dirent.h>
 
 /* You need to change this macro to your TFS mount point*/
-#define TESTDIR "/tmp/jss393/mountdir"
+#define TESTDIR "/tmp/av558/mountdir"
 
 #define N_FILES 100
 #define BLOCKSIZE 4096
@@ -17,7 +17,7 @@
 #define ITERS 5
 #define FILEPERM 0666
 #define DIRPERM 0755
-#define ITERS_LARGE 2048
+#define ITERS_LARGE 100
 
 char buf[BLOCKSIZE];
 
