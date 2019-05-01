@@ -9,12 +9,12 @@
 #include <dirent.h>
 
 /* You need to change this macro to your TFS mount point*/
-#define TESTDIR "/tmp/av558/mountdir"
+#define TESTDIR "/tmp/jss393/mountdir"
 
 #define N_FILES 100
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
-#define ITERS 1
+#define ITERS 10
 #define FILEPERM 0666
 #define DIRPERM 0755
 #define ITERS_LARGE 100//2048
@@ -95,7 +95,6 @@ int main(int argc, char **argv) {
 		}
 		//printf("buf %s \n", buf);
 	}
-
 	if (pread(fd, buf, BLOCKSIZE, 2*BLOCKSIZE) != BLOCKSIZE) {
 		perror("pread");
 		printf("TEST 4: File read failure \n");
@@ -104,7 +103,6 @@ int main(int argc, char **argv) {
 
 	printf("TEST 4: File read Success \n");
 	close(fd);
-	exit(1);
 
 	/* Unlink the file */
 	if ((ret = unlink(TESTDIR "/file")) < 0) {
@@ -114,7 +112,6 @@ int main(int argc, char **argv) {
 	}
 	printf("TEST 5: File unlink success \n");
 
-	return 0;
 	/* Directory creation test */
 	if ((ret = mkdir(TESTDIR "/files", DIRPERM)) < 0) {
 		perror("mkdir");

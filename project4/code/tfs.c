@@ -665,7 +665,7 @@ void initialize_file_inode(struct inode* inode){
 		}
 	}
 	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFREG | 0777;//0666;
+	vstat->st_mode   = S_IFREG | 0666;
 	time(& vstat->st_mtime);
 	inode->vstat=*vstat;			/* inode stat */
 
@@ -688,7 +688,7 @@ void initialize_dir_inode(struct inode* inode){
 		}
 	}
 	struct stat* vstat=malloc(sizeof(struct stat));
-	vstat->st_mode   = S_IFDIR | 0777;//0755;
+	vstat->st_mode   = S_IFDIR | 0755;
 	time(& vstat->st_mtime);
 	inode->vstat=*vstat;			/* inode stat */
 
@@ -808,24 +808,20 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		return -ENOENT;
 	}
 	// Step 2: fill attribute of file into stbuf from inode
-		// stbuf->st_nlink  = 2;
-		time(&stbuf->st_mtime);
-		if(inode->type==TFS_DIRECTORY){
-			stbuf->st_mode=S_IFDIR | 0777;//0755
-		}
-		else{
-			//may have to change to like 644 or 666
-			stbuf->st_mode=S_IFREG | 0777;//inode->vstat.st_mode;//inode's stat's mode
-		}
-		// stbuf->st_mode=inode->vstat.st_mode;
+		// if(inode->type==TFS_DIRECTORY){
+		// 	stbuf->st_mode=S_IFDIR | 0777;//0755
+		// }
+		// else{
+		// 	//may have to change to like 644 or 666
+		// 	stbuf->st_mode=S_IFREG | 0777;//inode->vstat.st_mode;//inode's stat's mode
+		// }
+		stbuf->st_mode=inode->vstat.st_mode;
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
 		printf("size of inode is %d\n",stbuf->st_size);
 		stbuf->st_ino=inode->ino;
 		//TODO: Ask if we should update access time, or just give last access?
 			//TODO: IF update access time, update for inode. If not, get it from inode
-		time(&stbuf->st_mtime);
-		stbuf->st_atime = time( NULL ); // The last "a"ccess of the file/directory is right now
 		//stbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
 		free(inode);
 		stbuf->st_uid=getuid();

@@ -6,5 +6,5 @@ cd benchmark
 make clean
 make
 cd ..
- ./tfs -s -f /tmp/av558/mountdir
- echo Mounted /tmp/av558/mountdir
+ ./tfs -s -f /tmp/jss393/mountdir
+ echo Mounted /tmp/jss393/mountdir
