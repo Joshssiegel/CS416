@@ -4,7 +4,6 @@
  *	Tiny File System
  *
  *	File:	tfs.c
- *  Author: Yujie REN
  *	Date:	April 2019
  *
  */
@@ -736,14 +735,34 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 }
 
 static void tfs_destroy(void *userdata) {
-
+	count_blocks_used();
 	// Step 1: De-allocate in-memory data structures
 	free(SB);
 	// Step 2: Close diskfile
 	dev_close(disk);
 
 }
-
+void count_blocks_used(){
+	bitmap_t inode_bitmap=malloc(BLOCK_SIZE);
+	bio_read(INODE_BITMAP_BLOCK,inode_bitmap);
+	bitmap_t data_bitmap=malloc(BLOCK_SIZE);
+	bio_read(DATA_BITMAP_BLOCK,data_bitmap);
+	printf("Super block used 1 block \n");
+	printf("Bitmaps used 2 blocks \n");
+	int numInodesUsed=0;
+	int numDataBlocksUsed=0;
+	int i=0;
+	for(i=0;i<MAX_DNUM;i++){
+		if(get_bitmap(data_bitmap,i)==1){
+			numDataBlocksUsed++;
+		}
+		if(i<MAX_INUM && get_bitmap(inode_bitmap,i)==1){
+			numInodesUsed+=1;
+		}
+	}
+	printf("number of data blocks used: %d\n",numDataBlocksUsed);
+	printf("number of inodes used: %d\n",numInodesUsed);
+}
 static int tfs_getattr(const char *path, struct stat *stbuf) {
 
 	printf("****************in tfs_getattr****************\n");
@@ -1226,7 +1245,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 				bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
 				//if number of bytes to read in the block is less than the desired size remaining
-				printf("size - numbytes written is %d\n",size-numBytesWritten);
+				// printf("size - numbytes written is %d\n",size-numBytesWritten);
 
 				if(BLOCK_SIZE-numByteOffset<=size-numBytesWritten){
 					memcpy(direct_data_block,bufferTail,BLOCK_SIZE-numByteOffset);
@@ -1239,7 +1258,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 
 				}
 				else if(size-numBytesWritten==0){
-					printf("numBytesWritten1 is %d\n",numBytesWritten);
+					// printf("numBytesWritten1 is %d\n",numBytesWritten);
 					//Set time
 					time(& (inode->vstat.st_mtime));
 					writei(inode->ino,inode);
@@ -1270,14 +1289,14 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 	//if the data block has not been intialized
 	else{
 		//initialize a data block
-		printf("should create a new data block\n");
+		// printf("should create a new data block\n");
 		int new_data_block=get_avail_blkno();
 		inode->direct_ptr[direct_ptr_index]=new_data_block;
 
 		//now that we have initialized, let's write the data
 		bio_read(SB->d_start_blk+inode->direct_ptr[direct_ptr_index],direct_data_block);
 		//if number of bytes to read in the block is less than the desired size remaining
-		printf("size - numbytes written is %d\n",size-numBytesWritten);
+		// printf("size - numbytes written is %d\n",size-numBytesWritten);
 
 		if(BLOCK_SIZE-numByteOffset<=size-numBytesWritten){
 			memcpy(direct_data_block,bufferTail,BLOCK_SIZE-numByteOffset);
@@ -1289,7 +1308,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			numBytesWritten+=BLOCK_SIZE-numByteOffset;
 		}
 		else if(size-numBytesWritten==0){
-			printf("numBytesWritten2 is %d\n",numBytesWritten);
+			// printf("numBytesWritten2 is %d\n",numBytesWritten);
 			time(& (inode->vstat.st_mtime));
 			writei(inode->ino,inode);
 			free(inode);
@@ -1307,11 +1326,10 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			//TODO: free here
 			time(& (inode->vstat.st_mtime));
 			writei(inode->ino,inode);
-			printf("numBytesWritten3 is %d\n",numBytesWritten);
+			// printf("numBytesWritten3 is %d\n",numBytesWritten);
 			free(inode);
 			free(direct_data_block);
 			free(indirect_data_block);
-			;
 			free(direct_ptr_block);
 			return numBytesWritten;
 		}
@@ -1326,16 +1344,15 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 		free(inode);
 		free(direct_data_block);
 		free(indirect_data_block);
-		;
 		free(direct_ptr_block);
 		return numBytesWritten;
 	}
-	printf("writing indirect blocks\n");
+	// printf("writing indirect blocks\n");
 	//otherwise there is still data to be read, start reading indirect blocks
 	for(indirect_ptr_index=0;indirect_ptr_index<8;indirect_ptr_index++){
 		if(inode->indirect_ptr[indirect_ptr_index]==-1){ // then unallocated
 			inode->indirect_ptr[indirect_ptr_index]=get_avail_blkno();
-			printf("Initialized indirect pointer index %d to datablock: %d\n", indirect_ptr_index, inode->indirect_ptr[indirect_ptr_index]);
+			// printf("Initialized indirect pointer index %d to datablock: %d\n", indirect_ptr_index, inode->indirect_ptr[indirect_ptr_index]);
 			initialize_direct_ptr_block(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index]);// initialize all direct ptr entries to -1 for now
 		}
 			//read the entire block pointed to by indirect pointer
@@ -1345,8 +1362,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 				previouslyUnallocated=0;
 				if(indirect_data_block[direct_ptr_index]==-1){
 					indirect_data_block[direct_ptr_index]=get_avail_blkno();
-					printf("set direct ptr slot #%d to point to block #%d\n", direct_ptr_index, indirect_data_block[direct_ptr_index]);
-					//TODO: maybe move the write outside the for loop?
+					// printf("set direct ptr slot #%d to point to block #%d\n", direct_ptr_index, indirect_data_block[direct_ptr_index]);
 					//TODO: check if get_avail_blkno() fails
 					bio_write(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index],indirect_data_block);
 					previouslyUnallocated = 1;
@@ -1376,7 +1392,6 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 					free(inode);
 					free(direct_data_block);
 					free(indirect_data_block);
-					;
 					free(direct_ptr_block);
 					return numBytesWritten;
 				}
@@ -1392,7 +1407,6 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 			free(inode);
 			free(direct_data_block);
 			free(indirect_data_block);
-			;
 			free(direct_ptr_block);
 			return numBytesWritten;
 		}
@@ -1400,7 +1414,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 	////////////////////////////////////////////////////////
 	// block offset greater than or equal to 16
 	else{
-	printf("Offset %d >= 16\n", numBlockOffset);
+	// printf("Offset %d >= 16\n", numBlockOffset);
   int indirectOffset = offset - 16*BLOCK_SIZE; //
   int numOffsetBlocks = indirectOffset/BLOCK_SIZE;
   int numDirectBlocksPerIndirectPtr = BLOCK_SIZE/sizeof(int);
@@ -1408,13 +1422,12 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
   int directBlockOffset = numOffsetBlocks%numDirectBlocksPerIndirectPtr;
   numByteOffset = indirectOffset%BLOCK_SIZE;
 	// previouslyUnallocated = 0;
-	printf("This offset leads us to indirect slot #%d and inside that to direct block slot #%d with a byte offset of %d inside it\n", numIndirectOffsetBlocks, directBlockOffset, numByteOffset);
+	// printf("This offset leads us to indirect slot #%d and inside that to direct block slot #%d with a byte offset of %d inside it\n", numIndirectOffsetBlocks, directBlockOffset, numByteOffset);
 	if(numIndirectOffsetBlocks>=8){
 		printf("Trying to write larger file than supported\n");
 		free(inode);
 		free(direct_data_block);
 		free(indirect_data_block);
-		;
 		free(direct_ptr_block);
 		return -1;
 	}
@@ -1425,7 +1438,7 @@ static int tfs_write(const char *path, const char *buffer, size_t size, off_t of
 for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr_index++){
 		if(inode->indirect_ptr[indirect_ptr_index]==-1){ // then unallocated
 			inode->indirect_ptr[indirect_ptr_index]=get_avail_blkno();
-			printf("Initialized indirect pointer index %d to datablock: %d\n", indirect_ptr_index, inode->indirect_ptr[indirect_ptr_index]);
+			// printf("Initialized indirect pointer index %d to datablock: %d\n", indirect_ptr_index, inode->indirect_ptr[indirect_ptr_index]);
 			initialize_direct_ptr_block(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index]);// initialize all direct ptr entries to -1 for now
 		}
 		//read the entire block pointed to by indirect pointer
@@ -1435,8 +1448,7 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 			previouslyUnallocated=0;
 			if(indirect_data_block[direct_ptr_index]==-1){
 				indirect_data_block[direct_ptr_index]=get_avail_blkno();
-				printf("set direct ptr slot #%d to point to block #%d\n", direct_ptr_index, indirect_data_block[direct_ptr_index]);
-				//TODO: maybe move the write outside the for loop?
+				// printf("set direct ptr slot #%d to point to block #%d\n", direct_ptr_index, indirect_data_block[direct_ptr_index]);
 				//TODO: check if get_avail_blkno() fails
 				bio_write(SB->d_start_blk+inode->indirect_ptr[indirect_ptr_index],indirect_data_block);
 				previouslyUnallocated = 1;
@@ -1466,7 +1478,6 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 				free(inode);
 				free(direct_data_block);
 				free(indirect_data_block);
-				;
 				free(direct_ptr_block);
         return numBytesWritten;
       }
@@ -1481,12 +1492,10 @@ for(indirect_ptr_index=numIndirectOffsetBlocks;indirect_ptr_index<8;indirect_ptr
 	free(inode);
 	free(direct_data_block);
 	free(indirect_data_block);
-	;
 	free(direct_ptr_block);
 	// Note: this function should return the amount of bytes you write to disk
 	return numBytesWritten;
 }
-
 void initialize_direct_ptr_block(int blockNum){
 	int *block_to_initialize = malloc(BLOCK_SIZE);
 	bio_read(blockNum, block_to_initialize);
