@@ -30,6 +30,12 @@ int main(int argc, char **argv) {
 		printf("TEST 1: File create failure \n");
 		exit(1);
 	}
+	if ((fd = creat(TESTDIR "/file", FILEPERM)) < 0) {
+		perror("creat");
+		printf("TEST 2: File create failure \n");
+		exit(1);
+	}
+	return ;
 //
 // 	for (j = 0; j < ITERS_LARGE; j++) {
 // 		//memset with some random data

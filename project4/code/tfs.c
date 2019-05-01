@@ -651,21 +651,6 @@ int tfs_mkfs() {
 	// update inode for root directory
 	struct inode* root_inode = calloc(1,sizeof(struct inode));
 	initialize_dir_inode(root_inode);
-
-	// root_inode->ino=0;				/* inode number */
-	// root_inode->valid=1;				/* validity of the inode */
-	// root_inode->size=0; //TODO: change to size of root dir				/* size of the file */
-	// root_inode->type=TFS_DIRECTORY;				/* type of the file */
-	// root_inode->link=2;				/* link count */
-	// int i=0;
-	// for(i=0;i<16;i++){
-	// 	root_inode->direct_ptr[i]=-1;
-	// }
-	//Update access time within vstat?
-	// struct stat* vstat=malloc(sizeof(struct stat));
-	// vstat->st_mode   = S_IFDIR | 0755;
-	// time(& vstat->st_mtime);
-	// root_inode->vstat=*vstat;			/* inode stat */
 	writei(0,root_inode);
 	return 0;
 }
@@ -771,24 +756,14 @@ static int tfs_getattr(const char *path, struct stat *stbuf) {
 		return -ENOENT;
 	}
 	// Step 2: fill attribute of file into stbuf from inode
-		// if(inode->type==TFS_DIRECTORY){
-		// 	stbuf->st_mode=S_IFDIR | 0777;//0755
-		// }
-		// else{
-		// 	//may have to change to like 644 or 666
-		// 	stbuf->st_mode=S_IFREG | 0777;//inode->vstat.st_mode;//inode's stat's mode
-		// }
 		stbuf->st_mode=inode->vstat.st_mode;
 		stbuf->st_nlink=inode->link;
 		stbuf->st_size=inode->size;
 		stbuf->st_ino=inode->ino;
-		//TODO: Ask if we should update access time, or just give last access?
-			//TODO: IF update access time, update for inode. If not, get it from inode
-		//stbuf->st_mtime = time( NULL ); // The last "m"odification of the file/directory is right now
-		free(inode);
 		stbuf->st_uid=getuid();
 		stbuf->st_gid=getgid();
 		stbuf->st_mtime=inode->vstat.st_mtime;
+		free(inode);
 	return 0;
 }
 
@@ -801,6 +776,7 @@ static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 	// Step 2: If not find, return -1
 	if(found_node<0){
 		printf("cannot open dir that doesn't exist\n");
+		free(inode);
 		return -1;
 	}
 	// int fd=find_next_file_descriptor();
@@ -810,6 +786,7 @@ static int tfs_opendir(const char *path, struct fuse_file_info *fi) {
 	// }
 	// fi->fh=inode->ino;
 	// printf("in opendir: gave file descriptor %d to file %s\n",fd,path);
+	free(inode);
   return 0;
 }
 
@@ -822,6 +799,7 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 	// Step 2: If not find, return -1
 	if(found_node<0){
 		printf("cannot open dir that doesn't exist\n");
+		free(inode);
 		return -1;
 	}
 	filler(buffer, ".", NULL,offset); // Current Directory
@@ -842,11 +820,15 @@ static int tfs_readdir(const char *path, void *buffer, fuse_fill_dir_t filler, o
 				printf("found %s in readdir\n",(data_block+dir_entry_index)->name);
 				int status=filler(buffer, (data_block+dir_entry_index)->name,NULL,offset);
 				if(status!=0){
+					free(inode);
+					free(data_block);
 					return 0;
 				}
 			}
 		}
 	}
+	free(inode);
+	free(data_block);
 	return 0;
 }
 
@@ -865,6 +847,9 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 	int found_parent=get_node_by_path(dir_name, 0,parent_inode);
 	if(found_parent<0){
 		printf("Parent directory doesn't exist.\n");
+		free(parent_inode);
+		free(dir_name);
+		free(sub_dir_name);
 		return -1;
 	}
 	// Step 3: Call get_avail_ino() to get an available inode number
@@ -881,6 +866,11 @@ static int tfs_mkdir(const char *path, mode_t mode) {
 		bio_read(INODE_BITMAP_BLOCK,inode_bitmap);
 		unset_bitmap(inode_bitmap,sub_dir_inode->ino);
 		bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+		free(inode_bitmap);
+		free(parent_inode);
+		free(sub_dir_inode);
+		free(dir_name);
+		free(sub_dir_name);
 		return status;
 	}
 	// Step 5: Update inode for target directory
@@ -948,6 +938,10 @@ static int tfs_rmdir(const char *path) {
 		printf("error removing\n");
 		return -1;
 	}
+	free(dir_name);
+	free(sub_dir_name);
+	free(parent_inode);
+	free(target_inode);
 	return 0;
 }
 
@@ -967,7 +961,14 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 	struct inode* parent_inode=malloc(sizeof(struct inode));
 	// Step 2: Call get_node_by_path() to get inode of parent directory
 	//TODO: Check return status of this function
-	get_node_by_path(dir_name, 0,parent_inode);
+	int found_parent=get_node_by_path(dir_name, 0,parent_inode);
+	if(found_parent==-1){
+		printf("couldn't create the file, directory not found\n");
+		free(dir_name);
+		free(file_name);
+		free(parent_inode);
+		return -1;
+	}
 	// Step 3: Call get_avail_ino() to get an available inode number
 	struct inode* file_inode=malloc(sizeof(struct inode));
 	initialize_file_inode(file_inode);
@@ -981,10 +982,13 @@ static int tfs_create(const char *path, mode_t mode, struct fuse_file_info *fi) 
 		bio_read(INODE_BITMAP_BLOCK,inode_bitmap);
 		unset_bitmap(inode_bitmap,file_inode->ino);
 		bio_write(INODE_BITMAP_BLOCK,inode_bitmap);
+		free(dir_name);
+		free(file_name);
+		free(parent_inode);
+		free(file_inode);
 		return status;
 	}
 	// Step 5: Update inode for target file
-	//TODO: What to update? already initialized file
 	// Step 6: Call writei() to write inode to disk
 	writei(file_inode->ino,file_inode);
 	// fi->fh=file_inode->ino;
@@ -1005,6 +1009,7 @@ static int tfs_open(const char *path, struct fuse_file_info *fi) {
 	// Step 2: If not find, return -1
 	if(found_status<0 || inode->valid==0){
 		printf("cannot open file, wasn't found.\n");
+		free(inode);
 		return -1;
 	}
 
@@ -1014,6 +1019,7 @@ static int tfs_open(const char *path, struct fuse_file_info *fi) {
 	// fd_table[fd]=inode->ino;
 	// printf("in open: gave file descriptor %d to file %s\n",fd,path);
 	printf("found in open, returning 0\n");
+	free(inode);
 	return 0;
 }
 
@@ -1507,18 +1513,29 @@ static int tfs_unlink(const char *path) {
 	int found_parent=get_node_by_path(dir_name, 0,parent_inode);
 	if(found_parent<0){
 		printf("Parent directory doesn't exist.\n");
+		free(dir_name);
+		free(file_name);
+		free(parent_inode);
+		free(target_inode);
 		return -1;
 	}
 	int found_target=get_node_by_path(path, 0,target_inode);
 	if(found_target<0){
 		printf("target directory doesn't exist.\n");
+		free(dir_name);
+		free(file_name);
+		free(parent_inode);
+		free(target_inode);
 		return -1;
 	}
 	target_inode->link-=1;
 	if(target_inode->link>0){
 		printf("not removing file because it still has %d links\n",target_inode->link);
-		exit(1);
-		// return 0;
+		free(dir_name);
+		free(file_name);
+		free(parent_inode);
+		free(target_inode);
+		return 0;
 	}
 	// printf("about to clear bitmaps\n");
 	// Step 3: Clear data block bitmap of target file
