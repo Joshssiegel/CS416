@@ -10,67 +10,42 @@
 
 /* You need to change this macro to your TFS mount point*/
 #define TESTDIR "/tmp/jss393/mountdir"
-
 #define N_FILES 100
 #define BLOCKSIZE 4096
 #define FSPATHLEN 256
-#define ITERS 10
+#define ITERS 100
 #define FILEPERM 0666
 #define DIRPERM 0755
-#define ITERS_LARGE 100//2048
 
 char buf[BLOCKSIZE];
 
 int main(int argc, char **argv) {
-	int i,j, fd = 0, ret = 0;
+
+	int i, fd = 0, ret = 0;
 	struct stat st;
-// 	for(i=0;i<10000;i++){
+
 	if ((fd = creat(TESTDIR "/file", FILEPERM)) < 0) {
 		perror("creat");
 		printf("TEST 1: File create failure \n");
 		exit(1);
 	}
-	if ((fd = creat(TESTDIR "/file", FILEPERM)) < 0) {
-		perror("creat");
-		printf("TEST 2: File create failure \n");
-		exit(1);
-	}
-	return ;
-//
-// 	for (j = 0; j < ITERS_LARGE; j++) {
-// 		//memset with some random data
-// 		memset(buf, 0x61 + i % 26, BLOCKSIZE);
-//
-// 		if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
-// 			printf("TEST 9: Large file write failure \n");
-// 			exit(1);
-// 		}
-// 	}
-//
-// 	close(fd);
-// 	if ((ret = unlink(TESTDIR "/file")) < 0) {
-// 		perror("unlink");
-// 		printf("TEST 1: File unlink failure \n");
-// 		exit(1);
-// 	}
-// 	printf("&&&iteration %d was a success\n",i);
-// }
-// 	printf("TEST 1: File create Success \n");
+	printf("TEST 1: File create Success \n");
+
 
 	/* Perform sequential writes */
 	for (i = 0; i < ITERS; i++) {
 		//memset with some random data
-		//memset(buf, 0x61 + i, BLOCKSIZE);
+		memset(buf, 0x61 + i, BLOCKSIZE);
+
 		if (write(fd, buf, BLOCKSIZE) != BLOCKSIZE) {
 			printf("TEST 2: File write failure \n");
 			exit(1);
 		}
-		printf("write success\n");
 	}
 
 	fstat(fd, &st);
 	if (st.st_size != ITERS*BLOCKSIZE) {
-		printf("TEST 2: File write size failure, size is %d and is suppose to be %d\n",st.st_size,ITERS*BLOCKSIZE);
+		printf("TEST 2: File write failure \n");
 		exit(1);
 	}
 	printf("TEST 2: File write Success \n");
@@ -101,6 +76,7 @@ int main(int argc, char **argv) {
 		}
 		//printf("buf %s \n", buf);
 	}
+
 	if (pread(fd, buf, BLOCKSIZE, 2*BLOCKSIZE) != BLOCKSIZE) {
 		perror("pread");
 		printf("TEST 4: File read failure \n");
@@ -110,6 +86,7 @@ int main(int argc, char **argv) {
 	printf("TEST 4: File read Success \n");
 	close(fd);
 
+
 	/* Unlink the file */
 	if ((ret = unlink(TESTDIR "/file")) < 0) {
 		perror("unlink");
@@ -117,6 +94,7 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 	printf("TEST 5: File unlink success \n");
+
 
 	/* Directory creation test */
 	if ((ret = mkdir(TESTDIR "/files", DIRPERM)) < 0) {

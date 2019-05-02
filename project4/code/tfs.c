@@ -735,6 +735,7 @@ static void *tfs_init(struct fuse_conn_info *conn) {
 }
 
 static void tfs_destroy(void *userdata) {
+	printf("inode strct i size %d\n",sizeof(struct inode));
 	count_blocks_used();
 	// Step 1: De-allocate in-memory data structures
 	free(SB);
